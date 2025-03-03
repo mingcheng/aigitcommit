@@ -9,46 +9,50 @@
  * File Created: 2025-03-01 17:17:30
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-03-03 17:48:40
+ * Last Modified: 2025-03-03 19:57:59
  */
 
+use aigitcommit::cli::Cli;
 use aigitcommit::openai::OpenAI;
 use aigitcommit::{git, openai};
 use async_openai::types::{
     ChatCompletionRequestSystemMessageArgs, ChatCompletionRequestUserMessageArgs,
 };
-use std::env;
+use clap::Parser;
 use std::error::Error;
 use std::io::Write;
+use std::{env, fs};
 use tracing::{debug, trace, Level};
 
 #[tokio::main]
 async fn main() -> std::result::Result<(), Box<dyn Error>> {
+    // Parse command line arguments
+    let cli = Cli::parse();
+
     // Initialize logging
     tracing_subscriber::fmt()
-        .with_max_level(Level::TRACE)
+        .with_max_level(if cli.verbose {
+            trace!("Verbose mode enabled, set the log level to TRACE. It will makes a little bit noise.");
+            Level::TRACE
+        } else {
+            debug!("Verbose mode disabled, set the default log level to WARN");
+            Level::WARN
+        })
         .without_time()
         .with_target(false)
         .init();
 
-    // get repository directory from command line argument
-    let repo_dir = {
-        let args: Vec<String> = env::args().collect();
-        if args.len() > 1 {
-            args[1].clone()
-        } else {
-            env::current_dir()?.to_string_lossy().to_string()
-        }
-    };
+    // Check if the specified path is a valid directory
+    let repo_dir = fs::canonicalize(&cli.repo_path)?;
 
     // Check if the directory is empty
-    if repo_dir.is_empty() {
-        return Err("No directory specified".into());
+    if !repo_dir.is_dir() {
+        return Err("The specified path is not a directory".into());
     }
-    trace!("Specified repository directory: {}", repo_dir);
 
+    trace!("Specified repository directory: {:?}", repo_dir);
     // Check if the directory is a valid git repository
-    let repository = git::Git::new(&repo_dir)?;
+    let repository = git::Git::new(repo_dir.to_str().unwrap_or("."))?;
 
     // Get the diff and logs from the repository
     let diffs = repository.get_diff()?;
