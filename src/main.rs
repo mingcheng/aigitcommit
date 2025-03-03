@@ -9,8 +9,9 @@
  * File Created: 2025-03-01 17:17:30
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-03-03 10:20:24
+ * Last Modified: 2025-03-03 10:35:45
  */
+
 use aigitcommit::openai::OpenAI;
 use aigitcommit::{git, openai};
 use async_openai::types::{
