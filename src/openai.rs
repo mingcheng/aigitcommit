@@ -9,7 +9,7 @@
  * File Created: 2025-03-01 21:55:58
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-03-03 10:35:52
+ * Last Modified: 2025-03-03 17:50:02
  */
 
 use askama::Template;
@@ -19,13 +19,14 @@ use async_openai::{
     types::{ChatCompletionRequestMessage, CreateChatCompletionRequestArgs},
     Client,
 };
+use log::trace;
 use reqwest::{ClientBuilder, Proxy};
 use std::env;
 use std::error::Error;
 use tracing::debug;
 
 #[derive(Template)]
-#[template(path = "prompt.txt")]
+#[template(path = "user.txt")]
 struct PromptTemplate<'a> {
     logs: &'a str,
     diffs: &'a str,
@@ -51,6 +52,7 @@ impl OpenAI {
 
         let mut client = Client::with_config(ai_config);
         if !proxy_addr.is_empty() {
+            trace!("Using proxy: {}", proxy_addr);
             client = client.with_http_client({
                 let proxy = Proxy::all(proxy_addr).unwrap();
                 ClientBuilder::new().proxy(proxy).build().unwrap()

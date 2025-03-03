@@ -9,7 +9,7 @@
  * File Created: 2025-03-01 21:55:54
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-03-03 10:28:17
+ * Last Modified: 2025-03-03 15:48:19
  */
 
 use git2::{Repository, StatusOptions};
@@ -61,11 +61,11 @@ impl Git {
         // Iterate over the diff and print the changes, excluding ignored files
         let mut result = vec![];
         diff.print(git2::DiffFormat::Patch, |delta, _hunk, line| {
-            if delta
-                .new_file()
-                .path()
-                .is_some_and(|path| path == Path::new("go.mod") || path == Path::new("go.sum"))
-            {
+            if delta.new_file().path().is_some_and(|path| {
+                path == Path::new("go.mod")
+                    || path == Path::new("go.sum")
+                    || path == Path::new("Cargo.lock")
+            }) {
                 return true; // Skip this file
             }
 

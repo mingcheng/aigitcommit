@@ -1,0 +1,11 @@
+Recent commits from this repo (for style reference):
+
+```
+{{logs}}
+```
+
+Here's the diff content if provided.
+
+```
+{{diffs}}
+```
