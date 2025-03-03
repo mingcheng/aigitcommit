@@ -1,0 +1,43 @@
+# Ignore files generated during development and build
+
+# Build output
+build/
+dist/
+out/
+target/
+
+# Dependencies
+node_modules/
+vendor/
+.venv/
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Operating System files
+.DS_Store
+Thumbs.db
+
+# Testing
+coverage/
+.nyc_output/
+
+# Package files
+*.tgz
+*.zip
+*.tar.gz

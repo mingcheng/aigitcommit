@@ -1,0 +1,45 @@
+[package]
+name = "aigitcommit"
+version = "0.1.0"
+edition = "2021"
+description = "A simple git commit message generator by OpenAI compaction model."
+license = "MIT"
+readme = "README.md"
+keywords = [
+    "git",
+    "commit",
+    "message",
+    "generator",
+    "openai",
+    "compaction",
+    "model",
+]
+authors = ["mingcheng<mingcheng@apache.org"]
+repository = "https://github.com/mingcheng/todo-rs"
+
+[dependencies]
+reqwest = { version = "0.12.12", features = [
+    "native-tls",
+    "json",
+    "stream",
+    "socks",
+    "blocking",
+    "multipart",
+] }
+askama = "0.12.1"
+async-openai = "0.27"
+git2 = "0.20"
+tokio = { version = "1.43.0", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+log = "0.4"
+strum = "0.27.1"
+strum_macros = "0.27.1"
+dialoguer = "0.10"
+
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+[[bin]]
+name = "aigitcommit"
+path = "src/main.rs"
