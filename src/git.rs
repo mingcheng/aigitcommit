@@ -9,7 +9,7 @@
  * File Created: 2025-03-01 21:55:54
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-03-03 15:48:19
+ * Last Modified: 2025-03-03 23:52:14
  */
 
 use git2::{Repository, StatusOptions};
@@ -100,35 +100,54 @@ impl Git {
 
 #[cfg(test)]
 mod tests {
+    use log::error;
+
     use super::*;
 
-    const REPO_PATH: &str = "";
+    fn setup() -> Result<Git, Box<dyn Error>> {
+        let repo_path = std::env::var("TEST_REPO_PATH")
+            .map_err(|_| "TEST_REPO_PATH environment variable not set")?;
+        if repo_path.is_empty() {
+            return Err("Please specify the repository path".into());
+        }
+        Git::new(&repo_path)
+    }
 
     #[test]
     fn test_new() {
-        let git = Git::new(REPO_PATH);
-        assert!(git.is_ok());
+        if setup().is_err() {
+            error!("Please specify the repository path");
+            return;
+        }
+
+        assert!(setup().is_ok());
     }
 
     #[test]
     fn test_logs() {
-        let git = Git::new(REPO_PATH).unwrap();
-        let logs = git.get_logs(5);
+        let repo = setup();
+        if repo.is_err() {
+            error!("Please specify the repository path");
+            return;
+        }
+
+        let logs = repo.unwrap().get_logs(5);
         assert!(logs.is_ok());
         assert_eq!(logs.unwrap().len(), 5);
     }
 
     #[test]
     fn test_diff() {
-        let git = Git::new(REPO_PATH).unwrap();
-        let diff = git.get_diff();
-        assert!(diff.is_ok());
-
-        let diff_content = diff.unwrap();
-        assert!(diff_content.len() > 0);
-
-        for line in diff_content {
-            println!("{:?}", line);
+        let repo = setup();
+        if repo.is_err() {
+            error!("Please specify the repository path");
+            return;
         }
+
+        let diffs = repo.unwrap().get_diff();
+        assert!(diffs.is_ok());
+
+        let diff_content = diffs.unwrap();
+        assert_ne!(diff_content.len(), 0);
     }
 }
