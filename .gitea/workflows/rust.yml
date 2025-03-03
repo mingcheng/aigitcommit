@@ -1,0 +1,65 @@
+#!#
+# Copyright (c) 2025 Hangzhou Guanwaii Technology Co,.Ltd.
+#
+# This source code is licensed under the MIT License,
+# which is located in the LICENSE file in the source tree's root directory.
+#
+# File: rust.yml
+# Author: mingcheng (mingcheng@apache.org)
+# File Created: 2025-02-24 10:20:48
+#
+# Modified By: mingcheng (mingcheng@apache.org)
+# Last Modified: 2025-03-03 23:42:24
+##
+
+on: [push, pull_request]
+
+name: Continuous integration for Rust
+
+env:
+  RUSTUP_UPDATE_ROOT: "https://mirrors.cernet.edu.cn/rustup/rustup"
+  RUSTUP_DIST_SERVER: "https://mirrors.cernet.edu.cn/rustup"
+
+jobs:
+  check:
+    name: Check the code with cargo check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - run: cargo check
+
+  test:
+    name: Test the code with cargo test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - run: cargo test --all -- --nocapture
+
+  fmt:
+    name: Rustfmt by cargo fmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - run: rustup component add rustfmt
+      - run: cargo fmt --all -- --check
+
+  clippy:
+    name: Check the Rust code with cargo clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - run: rustup component add clippy
+      - run: cargo clippy -- -D warnings
+
+  build:
+    name: Build and run the code with cargo build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - run: |
+          cargo build
