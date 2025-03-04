@@ -9,7 +9,7 @@
  * File Created: 2025-03-01 21:55:58
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-03-05 10:41:39
+ * Last Modified: 2025-03-05 10:46:26
  */
 
 use askama::Template;
@@ -46,6 +46,8 @@ impl Default for OpenAI {
 }
 
 impl OpenAI {
+    /// Create a new OpenAI client instance.
+    /// This function sets up the OpenAI client with the API key, base URL, and optional proxy settings.
     pub fn new() -> Self {
         // Set up OpenAI client configuration
         let ai_config = OpenAIConfig::new()
@@ -80,6 +82,8 @@ impl OpenAI {
         OpenAI { client }
     }
 
+    #[deprecated]
+    /// Check if the OpenAI API is reachable.
     pub async fn check(&self) -> Result<(), Box<dyn Error>> {
         match self.client.models().list().await {
             Ok(_) => Ok(()),
@@ -87,6 +91,7 @@ impl OpenAI {
         }
     }
 
+    /// Send a chat message to the OpenAI API and return the response.
     pub async fn chat(
         &self,
         model_name: &str,

@@ -16,6 +16,8 @@ keywords = [
 ]
 authors = ["mingcheng<mingcheng@apache.org"]
 repository = "https://github.com/mingcheng/aigitcommit"
+homepage = "https://github.com/mingcheng/aigitcommit"
+exclude = ["assets/*", "hooks/*"]
 
 [dependencies]
 reqwest = { version = "0.12.12", features = [
