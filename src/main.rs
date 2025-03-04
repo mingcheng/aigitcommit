@@ -9,7 +9,7 @@
  * File Created: 2025-03-01 17:17:30
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-03-04 12:32:09
+ * Last Modified: 2025-03-04 13:17:35
  */
 
 use aigitcommit::cli::Cli;
@@ -139,6 +139,22 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
                 }
             }
         }
+    }
+
+    // If the --save option is enabled, save the commit message to a file
+    if !cli.save.is_empty() {
+        trace!("Save option is enabled, will save the commit message to a file");
+
+        let save_path = fs::canonicalize(&cli.save)
+            .map_err(|_| format!("The save file path is not valid: {}", cli.save))?;
+
+        debug!("The save file path is {}", save_path.display());
+        fs::write(&save_path, &result)?;
+        writeln!(
+            std::io::stdout(),
+            "Commit message saved to {}",
+            save_path.display()
+        )?;
     }
 
     Ok(())

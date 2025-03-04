@@ -9,7 +9,7 @@
  * File Created: 2025-03-03 19:31:27
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-03-04 12:20:34
+ * Last Modified: 2025-03-04 13:13:16
  */
 
 use clap::Parser;
@@ -62,4 +62,13 @@ If not specified, the current directory will be used"#,
         required = false
     )]
     pub copy: bool,
+
+    #[arg(
+        long,
+        short,
+        default_value = "",
+        help = "Save the commit message to a file",
+        required = false
+    )]
+    pub save: String,
 }
