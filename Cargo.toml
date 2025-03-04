@@ -5,15 +5,7 @@ edition = "2024"
 description = "A simple git commit message generator by OpenAI compaction model."
 license = "MIT"
 readme = "README.md"
-keywords = [
-    "git",
-    "commit",
-    "message",
-    "generator",
-    "openai",
-    "compaction",
-    "model",
-]
+keywords = ["git", "openai", "tools"]
 authors = ["mingcheng<mingcheng@apache.org"]
 repository = "https://github.com/mingcheng/aigitcommit"
 homepage = "https://github.com/mingcheng/aigitcommit"
