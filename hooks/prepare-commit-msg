@@ -4,23 +4,9 @@
 # It is triggered before the commit message editor is opened.
 # Usage: Place this script in the `.git/hooks/` directory of your repository and make it executable.
 COMMIT_MSG_FILE=$1
-<<<<<<< HEAD
-REPO_ROOT=$(git rev-parse --show-toplevel)
-
-if [ -f $COMMIT_MSG_FILE ]; then
-    # If the commit message file already exists, exit the script
-    MESSAGE=$(cat $COMMIT_MSG_FILE)
-    if [ -n "$MESSAGE" ]; then
-        echo "Commit message already exists. Exiting."
-    exit 0
-    fi
-fi
-
-=======
 COMMIT_MSG_TYPE=$2
 REPO_ROOT=$(git rev-parse --show-toplevel)
 
->>>>>>> main
 # Check the repository root directory is valid
 # The `git rev-parse --show-toplevel` command returns the absolute path to the root of the repository
 # If the command fails, it means we are not in a Git repository
@@ -29,36 +15,12 @@ if [ ! -d "$REPO_ROOT" ]; then
     exit 1
 fi
 
-<<<<<<< HEAD
-# Get only the diff of what has already been staged
-GIT_DIFF_OUTPUT=$(git diff --cached)
-
-# Check if there are any staged changes to commit
-if [ -z "$GIT_DIFF_OUTPUT" ]; then
-  echo "No staged changes detected. Aborting."
-  exit 1
-fi
-
-# Check if aigitcommit is installed
-if ! command -v aigitcommit &> /dev/null; then
-=======
 # Check if aigitcommit is installed
 if ! type aigitcommit >/dev/null 2>&1; then
->>>>>>> main
     echo "Error: aigitcommit is not installed. Please install it first."
-    exit 1
+    exit 0
 fi
 
-<<<<<<< HEAD
-# Execute aigitcommit to generate the commit message
-# Redirecting output to the commit message file
-# and suppressing any error messages
-# The --save option is used to save the generated commit message to the file
-aigitcommit $REPO_ROOT --save $COMMIT_MSG_FILE > /dev/null 2>&1
-if [ $? -ne 0 ]; then
-    echo "Error: aigitcommit failed to generate commit message."
-    exit 1
-=======
 # Only proceed if this is a regular commit (message type is empty or "message")
 if [ "$COMMIT_MSG_TYPE" = "message" ] || [ -z "$COMMIT_MSG_TYPE" ]; then
     # Get only the diff of what has already been staged
@@ -91,5 +53,4 @@ if [ "$COMMIT_MSG_TYPE" = "message" ] || [ -z "$COMMIT_MSG_TYPE" ]; then
 else
     # For other commit types (merge, template, etc.), exit without doing anything
     exit 0
->>>>>>> main
 fi
