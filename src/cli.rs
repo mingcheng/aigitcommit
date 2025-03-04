@@ -9,7 +9,7 @@
  * File Created: 2025-03-03 19:31:27
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-03-03 23:39:53
+ * Last Modified: 2025-03-04 11:38:55
  */
 
 use clap::Parser;
@@ -37,4 +37,20 @@ If not specified, the current directory will be used"#,
         required = false
     )]
     pub verbose: bool,
+
+    #[arg(
+        long,
+        help = "Prompt the commit after generating the message",
+        default_value_t = false,
+        required = false
+    )]
+    pub commit: bool,
+
+    #[arg(
+        long,
+        help = "Copy the commit message to clipboard",
+        default_value_t = false,
+        required = false
+    )]
+    pub copy: bool,
 }

@@ -9,7 +9,7 @@
  * File Created: 2025-03-01 21:55:54
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-03-03 23:52:14
+ * Last Modified: 2025-03-04 11:29:20
  */
 
 use git2::{Repository, StatusOptions};
@@ -27,6 +27,36 @@ impl Git {
         let repository = Repository::open(path)?;
         trace!("Repository opened successfully");
         Ok(Git { repository })
+    }
+
+    /// Commit the changes in the repository
+    pub fn commit(&self, message: &str) -> Result<(), Box<dyn Error>> {
+        // Get the current index (staged changes)
+        let mut index = self.repository.index()?;
+
+        // Write the index to the repository
+        let oid = index.write_tree()?;
+        let tree = self.repository.find_tree(oid)?;
+
+        // Get the HEAD commit
+        let head = self.repository.head()?.peel_to_commit()?;
+
+        // Create a new commit
+        let author = head.author();
+        let committer = head.committer();
+        match self
+            .repository
+            .commit(Some("HEAD"), &author, &committer, message, &tree, &[&head])
+        {
+            Ok(_) => {
+                trace!("Commit created successfully");
+                Ok(())
+            }
+            Err(e) => {
+                trace!("Failed to create commit: {}", e);
+                Err(Box::new(e))
+            }
+        }
     }
 
     pub fn get_diff(&self) -> Result<Vec<String>, Box<dyn Error>> {
