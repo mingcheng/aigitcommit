@@ -11,9 +11,9 @@
  * Modified By: mingcheng (mingcheng@apache.org)
  * Last Modified: 2025-03-03 23:58:02
  */
-
 use askama::Template;
 use async_openai::config::OPENAI_API_BASE;
+use async_openai::error::OpenAIError;
 use async_openai::{
     config::OpenAIConfig,
     types::{ChatCompletionRequestMessage, CreateChatCompletionRequestArgs},
@@ -73,13 +73,16 @@ impl OpenAI {
         &self,
         model_name: &str,
         message: Vec<ChatCompletionRequestMessage>,
-    ) -> Result<String, Box<dyn Error>> {
+    ) -> Result<String, OpenAIError> {
         let request = CreateChatCompletionRequestArgs::default()
             .model(model_name)
             .messages(message)
             .build()?;
 
-        let response = self.client.chat().create(request).await?;
+        let response = match self.client.chat().create(request).await {
+            Ok(s) => s,
+            Err(e) => return Err(e),
+        };
 
         let mut result = vec![];
         response.choices.iter().for_each(|choice| {
@@ -88,7 +91,7 @@ impl OpenAI {
 
         if let Option::Some(usage) = response.usage {
             debug!(
-                "Usage: completion_tokens: {}, prompt_tokens: {}, total_tokens: {}",
+                "usage: completion_tokens: {}, prompt_tokens: {}, total_tokens: {}",
                 usage.completion_tokens, usage.prompt_tokens, usage.total_tokens
             );
         }

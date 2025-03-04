@@ -9,13 +9,14 @@
  * File Created: 2025-03-01 17:17:30
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-03-04 16:30:20
+ * Last Modified: 2025-03-16 23:11:04
  */
 
 use aigitcommit::cli::Cli;
 use aigitcommit::openai::OpenAI;
 use aigitcommit::{git, openai};
 use arboard::Clipboard;
+use async_openai::error::OpenAIError;
 use async_openai::types::{
     ChatCompletionRequestSystemMessageArgs, ChatCompletionRequestUserMessageArgs,
 };
@@ -33,17 +34,17 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
     let cli = Cli::parse();
 
     // Initialize logging
-    tracing_subscriber::fmt()
-        .with_max_level(if cli.verbose {
-            trace!("Verbose mode enabled, set the log level to TRACE. It will makes a little bit noise.");
-            Level::TRACE
-        } else {
-            debug!("Verbose mode disabled, set the default log level to WARN");
-            Level::WARN
-        })
-        .without_time()
-        .with_target(false)
-        .init();
+    if cli.verbose {
+        tracing_subscriber::fmt()
+            .with_max_level(Level::TRACE)
+            .without_time()
+            .with_target(false)
+            .init();
+
+        trace!(
+            "Verbose mode enabled, set the log level to TRACE. It will makes a little bit noise."
+        );
+    }
 
     // Check if the specified path is a valid directory
     let repo_dir = fs::canonicalize(&cli.repo_path)?;
@@ -67,11 +68,11 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
     // Get the last 5 commit logs
     // if the repository has less than 5 commits, it will return all logs
     let logs = repository.get_logs(5)?;
-    debug!("Got logs size is {}", logs.len());
+    debug!("got logs size is {}", logs.len());
 
     // If git commit log is empty, return error
     if logs.is_empty() {
-        return Err("No commit logs found".into());
+        return Err("no commit logs found".into());
     }
 
     // Instantiate OpenAI client, ready to send requests to the OpenAI API
@@ -106,7 +107,24 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
     ];
 
     // Send the request to OpenAI API and get the response
-    let result = client.chat(&model_name.to_string(), messages).await?;
+    let result = match client.chat(&model_name.to_string(), messages).await {
+        Ok(s) => s,
+        Err(e) => {
+            let message = match e {
+                OpenAIError::Reqwest(_) | OpenAIError::StreamError(_) => {
+                    "network request error".to_string()
+                }
+                OpenAIError::JSONDeserialize(_err) => "json deserialization error".to_string(),
+                OpenAIError::InvalidArgument(_) => "invalid argument".to_string(),
+                OpenAIError::FileSaveError(_) | OpenAIError::FileReadError(_) => {
+                    "io error".to_string()
+                }
+                OpenAIError::ApiError(e) => format!("api error {:?}", e),
+            };
+
+            return Err(message.into());
+        }
+    };
 
     trace!("write to stdout, and finish the process");
     writeln!(std::io::stdout(), "{}", result)?;
@@ -123,20 +141,20 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
 
     // directly commit the changes to the repository if the --commit option is enabled
     if cli.commit {
-        trace!("Commit option is enabled, will commit the changes to the repository");
+        trace!("commit option is enabled, will commit the changes to the repository");
         let mut confirm = Confirm::new();
         confirm
-            .with_prompt("Do you want to commit the changes with the generated commit message?")
+            .with_prompt("do you want to commit the changes with the generated commit message?")
             .default(false);
 
         // Prompt the user for confirmation if --yes option is not enabled
         if cli.yes || confirm.interact()? {
             match repository.commit(&result) {
                 Ok(_) => {
-                    writeln!(std::io::stdout(), "Commit successful!")?;
+                    writeln!(std::io::stdout(), "commit successful!")?;
                 }
                 Err(e) => {
-                    writeln!(std::io::stderr(), "Commit failed: {}", e)?;
+                    writeln!(std::io::stderr(), "commit failed: {}", e)?;
                 }
             }
         }
@@ -144,15 +162,15 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
 
     // If the --save option is enabled, save the commit message to a file
     if !cli.save.is_empty() {
-        trace!("Save option is enabled, will save the commit message to a file");
+        trace!("save option is enabled, will save the commit message to a file");
         let save_path = &cli.save;
-        debug!("The save file path is {:?}", &save_path);
+        debug!("the save file path is {:?}", &save_path);
 
         let mut file = File::create(save_path)?;
         file.write_all(result.as_bytes())?;
         file.flush()?;
 
-        writeln!(std::io::stdout(), "Commit message saved to {}", &save_path)?;
+        writeln!(std::io::stdout(), "commit message saved to {}", &save_path)?;
     }
 
     Ok(())
