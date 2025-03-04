@@ -7,11 +7,12 @@ A simple tool to help you write better Git commit messages using AI.
 ## Features
 
 - Generates meaningful commit messages based on your code changes
+- It allows you to commit straight to the repository and integrate with the Git workflow.
+- The created message can be copied to the clipboard.
 - Easy-to-use command-line interface
 - By using the libgit2 library, there is no need to call an external command for security reasons
 - The system supports multiple AI models that are compatible with the OpenAI API
 - Socks5 and HTTP proxy supported
-- Supports integration with Git workflow (todo)
 
 ## How It Works
 
