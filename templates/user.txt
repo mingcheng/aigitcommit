@@ -1,10 +1,10 @@
-Recent commits from this repo (for style reference):
+The latest commit history from the repository is shown here.
 
 ```
 {{logs}}
 ```
 
-Here's the diff content if provided.
+Additionally, a variety of content is provided below.
 
 ```
 {{diffs}}
