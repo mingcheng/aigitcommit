@@ -9,15 +9,7 @@
  * File Created: 2025-03-03 19:31:27
  *
  * Modified By: mingcheng (mingcheng@apache.org)
-<<<<<<< HEAD
- * Last Modified: 2025-03-04 13:13:16
-=======
-<<<<<<< HEAD
- * Last Modified: 2025-03-04 11:38:55
-=======
- * Last Modified: 2025-03-04 13:13:16
->>>>>>> release/1.2.0
->>>>>>> main
+ * Last Modified: 2025-03-04 16:31:19
  */
 
 use clap::Parser;
@@ -56,11 +48,6 @@ If not specified, the current directory will be used"#,
 
     #[arg(
         long,
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-=======
->>>>>>> main
         short,
         help = "Accept the commit message without prompting",
         default_value_t = false,
@@ -70,20 +57,11 @@ If not specified, the current directory will be used"#,
 
     #[arg(
         long,
-<<<<<<< HEAD
-=======
->>>>>>> release/1.2.0
->>>>>>> main
         help = "Copy the commit message to clipboard",
         default_value_t = false,
         required = false
     )]
     pub copy: bool,
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-=======
->>>>>>> main
 
     #[arg(
         long,
@@ -93,8 +71,4 @@ If not specified, the current directory will be used"#,
         required = false
     )]
     pub save: String,
-<<<<<<< HEAD
-=======
->>>>>>> release/1.2.0
->>>>>>> main
 }
