@@ -9,7 +9,7 @@
  * File Created: 2025-03-03 19:31:27
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-03-03 19:47:04
+ * Last Modified: 2025-03-04 11:38:55
  */
 
 use clap::Parser;
@@ -21,12 +21,36 @@ pub const CMD_ABOUT: &str = "A simple tool to help you write better Git commit m
 #[command(name = CMD)]
 #[command(about = CMD_ABOUT, version)]
 pub struct Cli {
-    /// Specify the file path to repository directory.
-    /// If not specified, the current directory will be used
-    #[arg(default_value = ".", required = false)]
+    #[arg(
+        default_value = ".",
+        help = r#"Specify the file path to repository directory.
+If not specified, the current directory will be used"#,
+        required = false
+    )]
     pub repo_path: String,
 
-    /// Verbose mode
-    #[arg(long, short, default_value_t = false, required = false)]
+    #[arg(
+        long,
+        short,
+        help = "Verbose mode",
+        default_value_t = false,
+        required = false
+    )]
     pub verbose: bool,
+
+    #[arg(
+        long,
+        help = "Prompt the commit after generating the message",
+        default_value_t = false,
+        required = false
+    )]
+    pub commit: bool,
+
+    #[arg(
+        long,
+        help = "Copy the commit message to clipboard",
+        default_value_t = false,
+        required = false
+    )]
+    pub copy: bool,
 }

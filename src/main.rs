@@ -9,16 +9,18 @@
  * File Created: 2025-03-01 17:17:30
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-03-03 19:57:59
+ * Last Modified: 2025-03-04 11:39:25
  */
 
 use aigitcommit::cli::Cli;
 use aigitcommit::openai::OpenAI;
 use aigitcommit::{git, openai};
+use arboard::Clipboard;
 use async_openai::types::{
     ChatCompletionRequestSystemMessageArgs, ChatCompletionRequestUserMessageArgs,
 };
 use clap::Parser;
+use dialoguer::Confirm;
 use std::error::Error;
 use std::io::Write;
 use std::{env, fs};
@@ -107,5 +109,30 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
     trace!("write to stdout, and finish the process");
     writeln!(std::io::stdout(), "{}", result)?;
 
+    // directly commit the changes to the repository if the --commit option is enabled
+    if cli.commit {
+        trace!("Commit option is enabled, will commit the changes to the repository");
+        if Confirm::new()
+            .with_prompt("\nDo you want to commit the changes with the generated commit message?")
+            .default(false)
+            .interact()?
+        {
+            match repository.commit(&result) {
+                Ok(_) => {
+                    writeln!(std::io::stdout(), "Commit successful!")?;
+                }
+                Err(e) => {
+                    writeln!(std::io::stderr(), "Commit failed: {}", e)?;
+                }
+            }
+        }
+    } else if cli.copy {
+        let mut clipboard = Clipboard::new()?;
+        clipboard.set_text(&result)?;
+        write!(
+            std::io::stdout(),
+            "\n The commit message has been copied to clipboard."
+        )?;
+    }
     Ok(())
 }

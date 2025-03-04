@@ -12,6 +12,6 @@
  * Last Modified: 2025-03-03 19:36:07
  */
 
+pub mod cli;
 pub mod git;
 pub mod openai;
-pub mod cli;

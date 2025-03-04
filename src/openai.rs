@@ -9,7 +9,7 @@
  * File Created: 2025-03-01 21:55:58
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-03-03 17:50:02
+ * Last Modified: 2025-03-03 23:58:02
  */
 
 use askama::Template;
@@ -111,17 +111,36 @@ impl OpenAI {
 
 #[cfg(test)]
 mod test {
+    use tracing::error;
+
     use super::*;
     use crate::git::Git;
-    const REPO_PATH: &str = "";
+
+    fn setup_repo() -> Result<Git, Box<dyn Error>> {
+        let repo_path = std::env::var("TEST_REPO_PATH")
+            .map_err(|_| "TEST_REPO_PATH environment variable not set")?;
+        if repo_path.is_empty() {
+            return Err("Please specify the repository path".into());
+        }
+
+        Git::new(&repo_path)
+    }
 
     #[test]
     fn test_prompt() {
-        let git = Git::new(REPO_PATH).unwrap();
-        let diffs = git.get_diff();
+        let repo = setup_repo();
+        if repo.is_err() {
+            error!("Please specify the repository path");
+            return;
+        }
+
+        assert!(repo.is_ok());
+        let repo = repo.unwrap();
+
+        let diffs = repo.get_diff();
         assert!(diffs.is_ok());
 
-        let logs = git.get_logs(5);
+        let logs = repo.get_logs(5);
         assert!(logs.is_ok());
 
         let diff_content = diffs.unwrap();
@@ -131,7 +150,6 @@ mod test {
         assert!(logs_content.len() > 0);
 
         let result = OpenAI::prompt(&logs_content, &diff_content).unwrap();
-
-        print!("{}", result);
+        assert!(!result.is_empty());
     }
 }
