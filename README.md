@@ -45,6 +45,9 @@ For instance, `http://127.0.0.1:1080` is suitable for an HTTP proxy, while `sock
 
 The way to use AIGitComment is really simple. For example, you can run `aigitcoment` in the current directory after staging the file to have git commits generated automatically before git commit. Additionally, you may provide the git directory using `aigitcommit <dir>`.
 
+1. You can use `--commit` parameters to commit the changes straight to the repository.
+2. Or you may just copy the commit message to the clipboard by using `--copy`.
+
 If you would like more usage settings, just use `aigitcommit --help` to get more details.
 
 ## Contributing
