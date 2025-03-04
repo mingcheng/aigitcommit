@@ -9,7 +9,7 @@
  * File Created: 2025-03-03 19:31:27
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-03-04 11:38:55
+ * Last Modified: 2025-03-04 12:20:34
  */
 
 use clap::Parser;
@@ -45,6 +45,15 @@ If not specified, the current directory will be used"#,
         required = false
     )]
     pub commit: bool,
+
+    #[arg(
+        long,
+        short,
+        help = "Accept the commit message without prompting",
+        default_value_t = false,
+        required = false
+    )]
+    pub yes: bool,
 
     #[arg(
         long,

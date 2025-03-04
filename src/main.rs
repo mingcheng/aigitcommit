@@ -9,7 +9,7 @@
  * File Created: 2025-03-01 17:17:30
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-03-04 11:39:25
+ * Last Modified: 2025-03-04 12:32:09
  */
 
 use aigitcommit::cli::Cli;
@@ -89,6 +89,7 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
     // Get the specified model name from environment variable, default to "gpt-4"
     let model_name = env::var("OPENAI_MODEL_NAME").unwrap_or_else(|_| String::from("gpt-4"));
 
+    // Load the system prompt from the template file
     let system_prompt = include_str!("../templates/system.txt");
 
     // The request contains the system message and user message
@@ -109,14 +110,26 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
     trace!("write to stdout, and finish the process");
     writeln!(std::io::stdout(), "{}", result)?;
 
+    // Copy the commit message to clipboard if the --copy option is enabled
+    if cli.copy {
+        let mut clipboard = Clipboard::new()?;
+        clipboard.set_text(&result)?;
+        writeln!(
+            std::io::stdout(),
+            "The commit message has been copied to clipboard."
+        )?;
+    }
+
     // directly commit the changes to the repository if the --commit option is enabled
     if cli.commit {
         trace!("Commit option is enabled, will commit the changes to the repository");
-        if Confirm::new()
-            .with_prompt("\nDo you want to commit the changes with the generated commit message?")
-            .default(false)
-            .interact()?
-        {
+        let mut confirm = Confirm::new();
+        confirm
+            .with_prompt("Do you want to commit the changes with the generated commit message?")
+            .default(false);
+
+        // Prompt the user for confirmation if --yes option is not enabled
+        if cli.yes || confirm.interact()? {
             match repository.commit(&result) {
                 Ok(_) => {
                     writeln!(std::io::stdout(), "Commit successful!")?;
@@ -126,13 +139,7 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
                 }
             }
         }
-    } else if cli.copy {
-        let mut clipboard = Clipboard::new()?;
-        clipboard.set_text(&result)?;
-        write!(
-            std::io::stdout(),
-            "\n The commit message has been copied to clipboard."
-        )?;
     }
+
     Ok(())
 }
