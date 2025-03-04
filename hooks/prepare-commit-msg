@@ -1,0 +1,56 @@
+#!/bin/sh
+
+# This script is a Git hook that generates a commit message using the `aigitcommit` command.
+# It is triggered before the commit message editor is opened.
+# Usage: Place this script in the `.git/hooks/` directory of your repository and make it executable.
+COMMIT_MSG_FILE=$1
+COMMIT_MSG_TYPE=$2
+REPO_ROOT=$(git rev-parse --show-toplevel)
+
+# Check the repository root directory is valid
+# The `git rev-parse --show-toplevel` command returns the absolute path to the root of the repository
+# If the command fails, it means we are not in a Git repository
+if [ ! -d "$REPO_ROOT" ]; then
+    echo "Error: Repository root not found."
+    exit 1
+fi
+
+# Check if aigitcommit is installed
+if ! type aigitcommit >/dev/null 2>&1; then
+    echo "Error: aigitcommit is not installed. Please install it first."
+    exit 1
+fi
+
+# Only proceed if this is a regular commit (message type is empty or "message")
+if [ "$COMMIT_MSG_TYPE" = "message" ] || [ -z "$COMMIT_MSG_TYPE" ]; then
+    # Get only the diff of what has already been staged
+    GIT_DIFF_OUTPUT=$(git diff --cached)
+
+    # Check if there are any staged changes to commit
+    if [ -z "$GIT_DIFF_OUTPUT" ]; then
+        echo "No staged changes detected. Aborting."
+        exit 1
+    fi
+
+    # Generate a temporary file for the commit message
+    TEMP_FILE=$(mktemp)
+
+    # Execute aigitcommit to generate the commit message
+    # Redirecting output to the commit message file
+    # and suppressing any error messages
+    # The --save option is used to save the generated commit message to the file
+    echo "Generating commit message by using AIGitCommit..."
+    echo "This may take a few seconds..."
+    aigitcommit $REPO_ROOT --save $TEMP_FILE >/dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        echo "Error: aigitcommit failed to generate commit message."
+        rm -f $TEMP_FILE
+        exit 1
+    fi
+
+    # Append the generated commit message to the temporary file
+    cat $COMMIT_MSG_FILE >>$TEMP_FILE && mv -f $TEMP_FILE $COMMIT_MSG_FILE
+else
+    # For other commit types (merge, template, etc.), exit without doing anything
+    exit 0
+fi

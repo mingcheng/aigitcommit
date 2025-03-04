@@ -7,11 +7,12 @@ A simple tool to help you write better Git commit messages using AI.
 ## Features
 
 - Generates meaningful commit messages based on your code changes
+- It allows you to commit straight to the repository and integrate with the Git workflow.
+- The created message can be copied to the clipboard.
 - Easy-to-use command-line interface
 - By using the libgit2 library, there is no need to call an external command for security reasons
 - The system supports multiple AI models that are compatible with the OpenAI API
 - Socks5 and HTTP proxy supported
-- Supports integration with Git workflow (todo)
 
 ## How It Works
 
@@ -49,6 +50,29 @@ The way to use AIGitComment is really simple. For example, you can run `aigitcom
 2. Or you may just copy the commit message to the clipboard by using `--copy`.
 
 If you would like more usage settings, just use `aigitcommit --help` to get more details.
+
+### Git Hook
+ 
+The `AIGitCommit` also supports git hooks. To integrate the hook, simply copy the `hooks/prepare-commit-msg` file into the repository's `.git/hooks/prepare-commit-msg`, and you're done.
+
+You can make it global by using Git's `core.hooksPath` instead of setting it up per repository.
+
+```
+# Create global hooks directory
+mkdir -p ~/.git-hooks
+
+# Copy the script contents above into this file
+vim ~/.git-hooks/prepare-commit-msg  # Or use your preferred editor
+
+# Make the script executable
+chmod +x ~/.git-hooks/prepare-commit-msg
+
+# Configure Git to use global hooks
+git config --global core.hooksPath ~/.git-hooks
+```
+
+Now every repository automatically gets `AIGitCommit` commit messages, just use `git commit` command.
+
 
 ## Contributing
 

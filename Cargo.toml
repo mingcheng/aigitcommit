@@ -1,6 +1,6 @@
 [package]
 name = "aigitcommit"
-version = "1.1.0"
+version = "1.2.0"
 edition = "2021"
 description = "A simple git commit message generator by OpenAI compaction model."
 license = "MIT"
