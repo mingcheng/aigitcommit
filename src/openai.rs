@@ -9,7 +9,7 @@
  * File Created: 2025-03-01 21:55:58
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-03-05 00:46:34
+ * Last Modified: 2025-03-05 10:41:39
  */
 
 use askama::Template;
@@ -24,6 +24,7 @@ use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{ClientBuilder, Proxy};
 use std::env;
 use std::error::Error;
+use std::time::Duration;
 use tracing::debug;
 
 use crate::cli;
@@ -46,27 +47,36 @@ impl Default for OpenAI {
 
 impl OpenAI {
     pub fn new() -> Self {
+        // Set up OpenAI client configuration
         let ai_config = OpenAIConfig::new()
             .with_api_key(env::var("OPENAI_API_TOKEN").unwrap_or_else(|_| String::from("")))
             .with_api_base(
                 env::var("OPENAI_API_BASE").unwrap_or_else(|_| String::from(OPENAI_API_BASE)),
-            );
-        let proxy_addr = env::var("OPENAI_APT_PROXY").unwrap_or_else(|_| String::from(""));
+            )
+            .with_org_id(cli::CMD);
 
-        let mut client = Client::with_config(ai_config);
-        let mut http_client = ClientBuilder::new().user_agent(cli::CMD).default_headers({
+        // Set up HTTP client builder with default headers
+        let mut http_client_builder = ClientBuilder::new().user_agent(cli::CMD).default_headers({
             let mut headers = HeaderMap::new();
             headers.insert("HTTP-Referer", HeaderValue::from_static(cli::CMD_ABOUT_URL));
             headers.insert("X-Title", HeaderValue::from_static(cli::CMD));
             headers
         });
 
+        // Set up proxy if specified
+        let proxy_addr = env::var("OPENAI_APT_PROXY").unwrap_or_else(|_| String::from(""));
         if !proxy_addr.is_empty() {
             trace!("Using proxy: {}", proxy_addr);
-            http_client = http_client.proxy(Proxy::all(proxy_addr).unwrap());
+            http_client_builder = http_client_builder.proxy(Proxy::all(proxy_addr).unwrap());
         }
 
-        client = client.with_http_client(http_client.build().unwrap());
+        // Set up timeout and build the HTTP client
+        let http_client = http_client_builder
+            .timeout(Duration::from_secs(10))
+            .build()
+            .unwrap();
+
+        let client = Client::with_config(ai_config).with_http_client(http_client);
         OpenAI { client }
     }
 
