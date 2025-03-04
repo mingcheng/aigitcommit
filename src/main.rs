@@ -9,7 +9,7 @@
  * File Created: 2025-03-01 17:17:30
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-03-04 13:17:35
+ * Last Modified: 2025-03-04 14:46:51
  */
 
 use aigitcommit::cli::Cli;
@@ -22,6 +22,7 @@ use async_openai::types::{
 use clap::Parser;
 use dialoguer::Confirm;
 use std::error::Error;
+use std::fs::File;
 use std::io::Write;
 use std::{env, fs};
 use tracing::{debug, trace, Level};
@@ -144,17 +145,14 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
     // If the --save option is enabled, save the commit message to a file
     if !cli.save.is_empty() {
         trace!("Save option is enabled, will save the commit message to a file");
+        let save_path = &cli.save;
+        debug!("The save file path is {:?}", &save_path);
 
-        let save_path = fs::canonicalize(&cli.save)
-            .map_err(|_| format!("The save file path is not valid: {}", cli.save))?;
+        let mut file = File::create(save_path)?;
+        file.write_all(result.as_bytes())?;
+        file.flush()?;
 
-        debug!("The save file path is {}", save_path.display());
-        fs::write(&save_path, &result)?;
-        writeln!(
-            std::io::stdout(),
-            "Commit message saved to {}",
-            save_path.display()
-        )?;
+        writeln!(std::io::stdout(), "Commit message saved to {}", &save_path)?;
     }
 
     Ok(())

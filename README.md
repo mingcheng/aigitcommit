@@ -51,6 +51,29 @@ The way to use AIGitComment is really simple. For example, you can run `aigitcom
 
 If you would like more usage settings, just use `aigitcommit --help` to get more details.
 
+### Git Hook
+ 
+The `AIGitCommit` also supports git hooks. To integrate the hook, simply copy the `hooks/prepare-commit-msg` file into the repository's `.git/hooks/prepare-commit-msg`, and you're done.
+
+You can make it global by using Git's `core.hooksPath` instead of setting it up per repository.
+
+```
+# Create global hooks directory
+mkdir -p ~/.git-hooks
+
+# Copy the script contents above into this file
+vim ~/.git-hooks/prepare-commit-msg  # Or use your preferred editor
+
+# Make the script executable
+chmod +x ~/.git-hooks/prepare-commit-msg
+
+# Configure Git to use global hooks
+git config --global core.hooksPath ~/.git-hooks
+```
+
+Now every repository automatically gets `AIGitCommit` commit messages, just use `git commit` command.
+
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
