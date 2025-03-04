@@ -25,7 +25,7 @@ use std::error::Error;
 use std::fs::File;
 use std::io::Write;
 use std::{env, fs};
-use tracing::{debug, trace, Level};
+use tracing::{Level, debug, trace};
 
 #[tokio::main]
 async fn main() -> std::result::Result<(), Box<dyn Error>> {

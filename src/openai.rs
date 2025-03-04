@@ -15,9 +15,9 @@
 use askama::Template;
 use async_openai::config::OPENAI_API_BASE;
 use async_openai::{
+    Client,
     config::OpenAIConfig,
     types::{ChatCompletionRequestMessage, CreateChatCompletionRequestArgs},
-    Client,
 };
 use log::trace;
 use reqwest::header::{HeaderMap, HeaderValue};
