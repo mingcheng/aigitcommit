@@ -9,7 +9,15 @@
  * File Created: 2025-03-01 17:17:30
  *
  * Modified By: mingcheng (mingcheng@apache.org)
+<<<<<<< HEAD
  * Last Modified: 2025-03-04 14:46:51
+=======
+<<<<<<< HEAD
+ * Last Modified: 2025-03-04 11:39:25
+=======
+ * Last Modified: 2025-03-04 14:46:51
+>>>>>>> release/1.2.0
+>>>>>>> main
  */
 
 use aigitcommit::cli::Cli;
@@ -111,6 +119,7 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
     trace!("write to stdout, and finish the process");
     writeln!(std::io::stdout(), "{}", result)?;
 
+<<<<<<< HEAD
     // Copy the commit message to clipboard if the --copy option is enabled
     if cli.copy {
         let mut clipboard = Clipboard::new()?;
@@ -124,6 +133,31 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
     // directly commit the changes to the repository if the --commit option is enabled
     if cli.commit {
         trace!("Commit option is enabled, will commit the changes to the repository");
+=======
+<<<<<<< HEAD
+    // directly commit the changes to the repository if the --commit option is enabled
+    if cli.commit {
+        trace!("Commit option is enabled, will commit the changes to the repository");
+        if Confirm::new()
+            .with_prompt("\nDo you want to commit the changes with the generated commit message?")
+            .default(false)
+            .interact()?
+        {
+=======
+    // Copy the commit message to clipboard if the --copy option is enabled
+    if cli.copy {
+        let mut clipboard = Clipboard::new()?;
+        clipboard.set_text(&result)?;
+        writeln!(
+            std::io::stdout(),
+            "The commit message has been copied to clipboard."
+        )?;
+    }
+
+    // directly commit the changes to the repository if the --commit option is enabled
+    if cli.commit {
+        trace!("Commit option is enabled, will commit the changes to the repository");
+>>>>>>> main
         let mut confirm = Confirm::new();
         confirm
             .with_prompt("Do you want to commit the changes with the generated commit message?")
@@ -131,6 +165,10 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
 
         // Prompt the user for confirmation if --yes option is not enabled
         if cli.yes || confirm.interact()? {
+<<<<<<< HEAD
+=======
+>>>>>>> release/1.2.0
+>>>>>>> main
             match repository.commit(&result) {
                 Ok(_) => {
                     writeln!(std::io::stdout(), "Commit successful!")?;
@@ -140,7 +178,21 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
                 }
             }
         }
+<<<<<<< HEAD
     }
+=======
+<<<<<<< HEAD
+    } else if cli.copy {
+        let mut clipboard = Clipboard::new()?;
+        clipboard.set_text(&result)?;
+        write!(
+            std::io::stdout(),
+            "\n The commit message has been copied to clipboard."
+        )?;
+    }
+=======
+    }
+>>>>>>> main
 
     // If the --save option is enabled, save the commit message to a file
     if !cli.save.is_empty() {
@@ -155,5 +207,9 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
         writeln!(std::io::stdout(), "Commit message saved to {}", &save_path)?;
     }
 
+<<<<<<< HEAD
+=======
+>>>>>>> release/1.2.0
+>>>>>>> main
     Ok(())
 }
