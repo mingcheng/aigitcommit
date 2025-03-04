@@ -9,12 +9,13 @@
  * File Created: 2025-03-01 17:17:30
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-03-05 00:12:26
+ * Last Modified: 2025-03-05 10:12:30
  */
 
 use aigitcommit::cli::Cli;
+use aigitcommit::git::Git;
+use aigitcommit::openai;
 use aigitcommit::openai::OpenAI;
-use aigitcommit::{git, openai};
 use arboard::Clipboard;
 use async_openai::types::{
     ChatCompletionRequestSystemMessageArgs, ChatCompletionRequestUserMessageArgs,
@@ -55,7 +56,7 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
 
     trace!("Specified repository directory: {:?}", repo_dir);
     // Check if the directory is a valid git repository
-    let repository = git::Git::new(repo_dir.to_str().unwrap_or("."))?;
+    let repository = Git::new(repo_dir.to_str().unwrap_or("."))?;
 
     // Get the diff and logs from the repository
     let diffs = repository.get_diff()?;
