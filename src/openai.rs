@@ -9,7 +9,7 @@
  * File Created: 2025-03-01 21:55:58
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-03-03 23:58:02
+ * Last Modified: 2025-03-05 00:46:34
  */
 
 use askama::Template;
@@ -20,10 +20,13 @@ use async_openai::{
     Client,
 };
 use log::trace;
+use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{ClientBuilder, Proxy};
 use std::env;
 use std::error::Error;
 use tracing::debug;
+
+use crate::cli;
 
 #[derive(Template)]
 #[template(path = "user.txt")]
@@ -51,14 +54,19 @@ impl OpenAI {
         let proxy_addr = env::var("OPENAI_APT_PROXY").unwrap_or_else(|_| String::from(""));
 
         let mut client = Client::with_config(ai_config);
+        let mut http_client = ClientBuilder::new().user_agent(cli::CMD).default_headers({
+            let mut headers = HeaderMap::new();
+            headers.insert("HTTP-Referer", HeaderValue::from_static(cli::CMD_ABOUT_URL));
+            headers.insert("X-Title", HeaderValue::from_static(cli::CMD));
+            headers
+        });
+
         if !proxy_addr.is_empty() {
             trace!("Using proxy: {}", proxy_addr);
-            client = client.with_http_client({
-                let proxy = Proxy::all(proxy_addr).unwrap();
-                ClientBuilder::new().proxy(proxy).build().unwrap()
-            })
-        };
+            http_client = http_client.proxy(Proxy::all(proxy_addr).unwrap());
+        }
 
+        client = client.with_http_client(http_client.build().unwrap());
         OpenAI { client }
     }
 

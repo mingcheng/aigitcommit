@@ -9,7 +9,7 @@
  * File Created: 2025-03-01 17:17:30
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-03-04 16:30:20
+ * Last Modified: 2025-03-05 00:12:26
  */
 
 use aigitcommit::cli::Cli;
@@ -78,11 +78,11 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
     let client = openai::OpenAI::new();
 
     // Check if the OpenAI request is valid, if not, return error
-    if client.check().await.is_err() {
-        return Err(
-            "OpenAI API check with error, please check your API key or configuration".into(),
-        );
-    };
+    // if client.check().await.is_err() {
+    //     return Err(
+    //         "OpenAI API check with error, please check your API key or configuration".into(),
+    //     );
+    // };
 
     // Generate the prompt which will be sent to OpenAI API
     let content = OpenAI::prompt(&logs, &diffs)?;
