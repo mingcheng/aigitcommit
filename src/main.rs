@@ -9,7 +9,7 @@
  * File Created: 2025-03-01 17:17:30
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-07-01 07:46:44
+ * Last Modified: 2025-07-11 17:39:40
  */
 
 use aigitcommit::cli::Cli;
@@ -126,6 +126,19 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
             return Err(message.into());
         }
     };
+
+    // If the --signoff option is enabled, add signoff to the commit message
+    if cli.signoff {
+        trace!("signoff option is enabled, will add signoff to the commit message");
+        let (author_name, author_email) = (
+            repository.get_author_name()?,
+            repository.get_author_email()?,
+        );
+
+        // Add signoff to the commit message
+        let signoff = format!("\n\nSigned-off-by: {} <{}>", author_name, author_email);
+        result.push_str(&signoff);
+    }
 
     // Detect auto signoff from environment variable
     let need_signoff = cli.signoff
