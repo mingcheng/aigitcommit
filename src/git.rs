@@ -67,6 +67,42 @@ impl Git {
         }
     }
 
+    pub fn get_author_email(&self) -> Result<String, Box<dyn Error>> {
+        // Get the configuration of the repository
+        let config = self.repository.config()?;
+
+        // Get the user email from the configuration
+        match config.get_string("user.email") {
+            Ok(email) => {
+                trace!("Author email: {}", email);
+                Ok(email)
+            }
+
+            Err(e) => {
+                trace!("Failed to get author email: {}", e);
+                Err(Box::new(e))
+            }
+        }
+    }
+
+    pub fn get_author_name(&self) -> Result<String, Box<dyn Error>> {
+        // Get the configuration of the repository
+        let config = self.repository.config()?;
+
+        // Get the user name from the configuration
+        match config.get_string("user.name") {
+            Ok(name) => {
+                trace!("Author name: {}", name);
+                Ok(name)
+            }
+
+            Err(e) => {
+                trace!("Failed to get author name: {}", e);
+                Err(Box::new(e))
+            }
+        }
+    }
+
     pub fn get_diff(&self) -> Result<Vec<String>, Box<dyn Error>> {
         // Get the current index (staged changes)
         let index = self.repository.index()?;
@@ -159,6 +195,32 @@ mod tests {
         }
 
         assert!(setup().is_ok());
+    }
+
+    #[test]
+    fn test_get_author_email() {
+        let repo = setup();
+        if repo.is_err() {
+            error!("Please specify the repository path");
+            return;
+        }
+
+        let email = repo.unwrap().get_author_email();
+        assert!(email.is_ok());
+        assert!(!email.unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_get_author_name() {
+        let repo = setup();
+        if repo.is_err() {
+            error!("Please specify the repository path");
+            return;
+        }
+
+        let name = repo.unwrap().get_author_name();
+        assert!(name.is_ok());
+        assert!(!name.unwrap().is_empty());
     }
 
     #[test]
