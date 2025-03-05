@@ -9,10 +9,10 @@
  * File Created: 2025-03-01 21:55:54
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-03-04 11:29:20
+ * Last Modified: 2025-03-05 10:12:04
  */
 
-use git2::{Repository, StatusOptions};
+use git2::{Repository, RepositoryOpenFlags, StatusOptions};
 use log::trace;
 use std::error::Error;
 use std::path::Path;
@@ -24,8 +24,16 @@ pub struct Git {
 impl Git {
     pub fn new(path: &str) -> Result<Git, Box<dyn Error>> {
         trace!("Opening repository at {}", path);
-        let repository = Repository::open(path)?;
+        // let repository = Repository::open(path)?;
+        let repository = Repository::open_ext(path, RepositoryOpenFlags::empty(), vec![path])?;
+
         trace!("Repository opened successfully");
+        if let Some(work_dir) = repository.workdir() {
+            trace!("The repository workdir is: {:?}", work_dir);
+        } else {
+            return Err("The repository has no workdir".into());
+        }
+
         Ok(Git { repository })
     }
 

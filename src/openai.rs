@@ -9,21 +9,25 @@
  * File Created: 2025-03-01 21:55:58
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-03-03 23:58:02
+ * Last Modified: 2025-03-05 10:46:26
  */
 
 use askama::Template;
 use async_openai::config::OPENAI_API_BASE;
 use async_openai::{
+    Client,
     config::OpenAIConfig,
     types::{ChatCompletionRequestMessage, CreateChatCompletionRequestArgs},
-    Client,
 };
 use log::trace;
+use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{ClientBuilder, Proxy};
 use std::env;
 use std::error::Error;
+use std::time::Duration;
 use tracing::debug;
+
+use crate::cli;
 
 #[derive(Template)]
 #[template(path = "user.txt")]
@@ -42,26 +46,44 @@ impl Default for OpenAI {
 }
 
 impl OpenAI {
+    /// Create a new OpenAI client instance.
+    /// This function sets up the OpenAI client with the API key, base URL, and optional proxy settings.
     pub fn new() -> Self {
+        // Set up OpenAI client configuration
         let ai_config = OpenAIConfig::new()
             .with_api_key(env::var("OPENAI_API_TOKEN").unwrap_or_else(|_| String::from("")))
             .with_api_base(
                 env::var("OPENAI_API_BASE").unwrap_or_else(|_| String::from(OPENAI_API_BASE)),
-            );
-        let proxy_addr = env::var("OPENAI_APT_PROXY").unwrap_or_else(|_| String::from(""));
+            )
+            .with_org_id(cli::CMD);
 
-        let mut client = Client::with_config(ai_config);
+        // Set up HTTP client builder with default headers
+        let mut http_client_builder = ClientBuilder::new().user_agent(cli::CMD).default_headers({
+            let mut headers = HeaderMap::new();
+            headers.insert("HTTP-Referer", HeaderValue::from_static(cli::CMD_ABOUT_URL));
+            headers.insert("X-Title", HeaderValue::from_static(cli::CMD));
+            headers
+        });
+
+        // Set up proxy if specified
+        let proxy_addr = env::var("OPENAI_APT_PROXY").unwrap_or_else(|_| String::from(""));
         if !proxy_addr.is_empty() {
             trace!("Using proxy: {}", proxy_addr);
-            client = client.with_http_client({
-                let proxy = Proxy::all(proxy_addr).unwrap();
-                ClientBuilder::new().proxy(proxy).build().unwrap()
-            })
-        };
+            http_client_builder = http_client_builder.proxy(Proxy::all(proxy_addr).unwrap());
+        }
 
+        // Set up timeout and build the HTTP client
+        let http_client = http_client_builder
+            .timeout(Duration::from_secs(10))
+            .build()
+            .unwrap();
+
+        let client = Client::with_config(ai_config).with_http_client(http_client);
         OpenAI { client }
     }
 
+    #[deprecated]
+    /// Check if the OpenAI API is reachable.
     pub async fn check(&self) -> Result<(), Box<dyn Error>> {
         match self.client.models().list().await {
             Ok(_) => Ok(()),
@@ -69,6 +91,7 @@ impl OpenAI {
         }
     }
 
+    /// Send a chat message to the OpenAI API and return the response.
     pub async fn chat(
         &self,
         model_name: &str,
