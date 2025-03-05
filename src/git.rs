@@ -9,10 +9,10 @@
  * File Created: 2025-03-01 21:55:54
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-07-11 18:36:58
+ * Last Modified: 2025-07-11 17:41:21
  */
 
-use git2::{Repository, RepositoryOpenFlags, Signature, StatusOptions};
+use git2::{Repository, RepositoryOpenFlags, StatusOptions};
 use log::trace;
 use std::error::Error;
 use std::path::Path;
@@ -37,10 +37,8 @@ impl Git {
     }
 
     /// Commit the changes in the repository
-    pub fn commit(&self, message: &str, need_signoff: bool) -> Result<(), Box<dyn Error>> {
+    pub fn commit(&self, message: &str) -> Result<(), Box<dyn Error>> {
         // Get the current index (staged changes)
-
-        let mut message = message.to_string();
         let mut index = self.repository.index()?;
 
         // Write the index to the repository
@@ -51,29 +49,12 @@ impl Git {
         let head = self.repository.head()?.peel_to_commit()?;
 
         // Create a new commit
-        let author_name = self.get_author_name()?;
-        let author_email = self.get_author_email()?;
-
-        // Create a signature for the author and committer
-        let signature = Signature::now(&author_name, &author_email)?;
-
-        // If the --signoff option is enabled, add signoff to the commit message
-        if need_signoff {
-            trace!("signoff option is enabled, will add signoff to the commit message");
-
-            // Add signoff to the commit message
-            let signoff = format!("\n\nSigned-off-by: {author_name} <{author_email}>");
-            message.push_str(&signoff);
-        }
-
-        match self.repository.commit(
-            Some("HEAD"),
-            &signature,
-            &signature,
-            &message,
-            &tree,
-            &[&head],
-        ) {
+        let author = head.author();
+        let committer = head.committer();
+        match self
+            .repository
+            .commit(Some("HEAD"), &author, &committer, message, &tree, &[&head])
+        {
             Ok(_) => {
                 trace!("commit created successfully");
                 Ok(())
@@ -85,7 +66,6 @@ impl Git {
         }
     }
 
-    /// Get the author email and name from the repository configuration
     pub fn get_author_email(&self) -> Result<String, Box<dyn Error>> {
         // Get the configuration of the repository
         let config = self.repository.config()?;
@@ -122,7 +102,6 @@ impl Git {
         }
     }
 
-    /// Get the diff of the current repository
     pub fn get_diff(&self) -> Result<Vec<String>, Box<dyn Error>> {
         // Get the current index (staged changes)
         let index = self.repository.index()?;
@@ -170,7 +149,6 @@ impl Git {
         Ok(result)
     }
 
-    /// Get the latest `size` commit messages from the repository
     pub fn get_logs(&self, size: usize) -> Result<Vec<String>, Box<dyn Error>> {
         // Get the `size` latest commits starting from HEAD
         let mut revwalk = self.repository.revwalk()?;
@@ -222,7 +200,7 @@ mod tests {
     fn test_get_author_email() {
         let repo = setup();
         if repo.is_err() {
-            error!("please specify the repository path");
+            error!("Please specify the repository path");
             return;
         }
 
@@ -235,7 +213,7 @@ mod tests {
     fn test_get_author_name() {
         let repo = setup();
         if repo.is_err() {
-            error!("please specify the repository path");
+            error!("Please specify the repository path");
             return;
         }
 

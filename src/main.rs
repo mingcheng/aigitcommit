@@ -9,7 +9,7 @@
  * File Created: 2025-03-01 17:17:30
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-07-11 18:39:26
+ * Last Modified: 2025-07-11 17:39:40
  */
 
 use aigitcommit::cli::Cli;
@@ -79,24 +79,18 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
     // Instantiate OpenAI client, ready to send requests to the OpenAI API
     let client = openai::OpenAI::new();
 
+    // Check if the OpenAI request is valid, if not, return error
+    // if client.check().await.is_err() {
+    //     return Err(
+    //         "OpenAI API check with error, please check your API key or configuration".into(),
+    //     );
+    // };
+
     // Generate the prompt which will be sent to OpenAI API
     let content = OpenAI::prompt(&logs, &diffs)?;
 
     // Get the specified model name from environment variable, default to "gpt-4"
     let model_name = env::var("OPENAI_MODEL_NAME").unwrap_or_else(|_| String::from("gpt-4"));
-
-    // Check if the model name is valid
-    if cli.check {
-        trace!("check option is enabled, will check the OpenAI API key and model name");
-        match client.check_model(&model_name).await {
-            Ok(()) => {
-                debug!("the model name `{}` is available", model_name);
-            }
-            Err(e) => {
-                return Err(format!("the model name `{model_name}` is not available: {e}").into());
-            }
-        }
-    }
 
     // Load the system prompt from the template file
     let system_prompt = include_str!("../templates/system.txt");
@@ -114,7 +108,7 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
     ];
 
     // Send the request to OpenAI API and get the response
-    let result = match client.chat(&model_name.to_string(), messages).await {
+    let mut result = match client.chat(&model_name.to_string(), messages).await {
         Ok(s) => s,
         Err(e) => {
             let message = match e {
@@ -133,13 +127,38 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
         }
     };
 
+    // If the --signoff option is enabled, add signoff to the commit message
+    if cli.signoff {
+        trace!("signoff option is enabled, will add signoff to the commit message");
+        let (author_name, author_email) = (
+            repository.get_author_name()?,
+            repository.get_author_email()?,
+        );
+
+        // Add signoff to the commit message
+        let signoff = format!("\n\nSigned-off-by: {} <{}>", author_name, author_email);
+        result.push_str(&signoff);
+    }
+
     // Detect auto signoff from environment variable
     let need_signoff = cli.signoff
         || env::var("GIT_AUTO_SIGNOFF")
             .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
             .unwrap_or(false);
 
-    // Write the commit message to stdout
+    // If the --signoff option is enabled, add signoff to the commit message
+    if need_signoff {
+        trace!("signoff option is enabled, will add signoff to the commit message");
+        let (author_name, author_email) = (
+            repository.get_author_name()?,
+            repository.get_author_email()?,
+        );
+
+        // Add signoff to the commit message
+        let signoff = format!("\n\nSigned-off-by: {author_name} <{author_email}>");
+        result.push_str(&signoff);
+    }
+
     trace!("write to stdout, and finish the process");
     writeln!(std::io::stdout(), "{result}")?;
 
@@ -163,7 +182,7 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
 
         // Prompt the user for confirmation if --yes option is not enabled
         if cli.yes || confirm.interact()? {
-            match repository.commit(&result, need_signoff) {
+            match repository.commit(&result) {
                 Ok(_) => {
                     writeln!(std::io::stdout(), "commit successful!")?;
                 }
