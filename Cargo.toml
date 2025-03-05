@@ -3,13 +3,14 @@ name = "aigitcommit"
 version = "1.3.0"
 edition = "2024"
 description = "A simple git commit message generator by OpenAI compaction model."
-license = "MIT"
+license-file = "LICENSE"
 readme = "README.md"
 keywords = ["git", "openai", "tools"]
-authors = ["mingcheng<mingcheng@apache.org"]
+authors = ["mingcheng <mingcheng@apache.org"]
 repository = "https://github.com/mingcheng/aigitcommit"
 homepage = "https://github.com/mingcheng/aigitcommit"
 exclude = ["assets/*", "hooks/*"]
+categories = ["command-line-utilities", "development-tools::git-tools"]
 
 [dependencies]
 reqwest = { version = "0.12.12", features = [
