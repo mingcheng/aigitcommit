@@ -49,6 +49,14 @@ If not specified, the current directory will be used"#,
 
     #[arg(
         long,
+        help = "Mark whether the commit is a signoff commit",
+        default_value_t = false,
+        required = false
+    )]
+    pub signoff: bool,
+
+    #[arg(
+        long,
         short,
         help = "Accept the commit message without prompting",
         default_value_t = false,
