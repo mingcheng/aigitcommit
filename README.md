@@ -28,7 +28,13 @@ AIGitCommit is still in the early stages of development, I suggest you to instal
 cargo install --git https://github.com/mingcheng/aigitcommit.git
 ```
 
-This command will auto-download the latest version of the project and install it to your cargo bin directory.
+or, You can install from [crates.io](https://crates.io/crates/aigitcommit)
+
+```
+cargo install aigitcommit
+```
+
+Those command will auto-download the latest version of the project and install it to your cargo bin directory.
 
 ## Configuration
 
