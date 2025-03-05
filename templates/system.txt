@@ -12,7 +12,7 @@ Please generate a git commit message with the specified requirements.
 
 2. An emoji can be used appropriately at the end of the statement for the first line.
 
-3. Optional bullet points for more information:
+3. Optional bullet points to provide further details, and briefly summarise, keeping it to no more than five main points.
 
 - The second line should be left empty.
 - Focus on changes and be succinct and clear.
