@@ -7,7 +7,7 @@ services:
       OPENAI_API_BASE: ""
       OPENAI_API_TOKEN: ""
       OPENAI_MODEL_NAME: ""
-      OPENAI_APT_PROXY: ""
+      OPENAI_API_PROXY: ""
 
     volumes:
       - .:/repo:ro
