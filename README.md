@@ -1,5 +1,7 @@
 # AIGitCommit
 
+[![Cargo Build & Test](https://github.com/mingcheng/aigitcommit/actions/workflows/rust.yml/badge.svg?branch=main)](https://github.com/mingcheng/aigitcommit/actions/workflows/rust.yml)
+
 ![screenshots](./assets/screenshots.png)
 
 A simple tool to help you write better Git commit messages using AI.
