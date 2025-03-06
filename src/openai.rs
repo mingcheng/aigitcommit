@@ -9,7 +9,7 @@
  * File Created: 2025-03-01 21:55:58
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-03-05 10:46:26
+ * Last Modified: 2025-03-06 17:59:08
  */
 
 use askama::Template;
@@ -66,17 +66,23 @@ impl OpenAI {
         });
 
         // Set up proxy if specified
-        let proxy_addr = env::var("OPENAI_APT_PROXY").unwrap_or_else(|_| String::from(""));
+        let proxy_addr: String = env::var("OPENAI_APT_PROXY").unwrap_or_else(|_| String::from(""));
         if !proxy_addr.is_empty() {
             trace!("Using proxy: {}", proxy_addr);
             http_client_builder = http_client_builder.proxy(Proxy::all(proxy_addr).unwrap());
         }
 
+        let request_timeout =
+            env::var("OPENAI_REQUEST_TIMEOUT").unwrap_or_else(|_| String::from(""));
+        if !request_timeout.is_empty() {
+            if let Ok(timeout) = request_timeout.parse::<u64>() {
+                trace!("Setting request timeout to: {}ms", request_timeout);
+                http_client_builder = http_client_builder.timeout(Duration::from_millis(timeout));
+            }
+        }
+
         // Set up timeout and build the HTTP client
-        let http_client = http_client_builder
-            .timeout(Duration::from_secs(10))
-            .build()
-            .unwrap();
+        let http_client = http_client_builder.build().unwrap();
 
         let client = Client::with_config(ai_config).with_http_client(http_client);
         OpenAI { client }
