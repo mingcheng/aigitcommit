@@ -1,10 +1,10 @@
-The latest commit history from the repository is shown here.
+The latest commit history from the repository is shown here, quote by using the "```" charsets.
 
 ```
 {{logs}}
 ```
 
-Additionally, a variety of content is provided below.
+Additionally, a variety of content is provided below, quote by using the "```" charsets.
 
 ```
 {{diffs}}
