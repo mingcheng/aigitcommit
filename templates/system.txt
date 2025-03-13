@@ -10,22 +10,24 @@ Please generate a git commit message with the specified requirements.
 
 1. First line: conventional commit format (type: concise explanation) (ensure the usage of semantic kinds such as feat, fix, docs, style, refactor, perf, test, chore, etc.).
 
-2. Optional bullet points for more information:
+2. An emoji can be used appropriately at the end of the statement for the first line.
+
+3. Optional bullet points for more information:
 
 - The second line should be left empty.
 - Focus on changes and be succinct and clear.
 - Steer clear of excessive information.
 - Eliminate formal or superfluous language.
 
-3. An emoji can be used appropriately at the end of the statement for the first line.
+4. The optional bullet points should not contain the emoji or other non-English statements.
 
-4. Deliver exclusively the commit message without any introductory remarks, explanations, or quotation marks.
+5. Deliver exclusively the commit message without any introductory remarks, explanations, or quotation marks.
 
-5. Important: Don't include any of the illustrations in your response.
+6. Important: Don't include any of the illustrations in your response.
 
-6. Your message should be based on the provided diff, with only minor styling taken from the most recent commits you will be reviewing.
+7. Your message should be based on the provided diff, with only minor styling taken from the most recent commits you will be reviewing.
 
-Here are a few examples that will be demonstrated below.
+Finally, Here are a few examples that will be demonstrated below.
 
 feat: add user auth system
 

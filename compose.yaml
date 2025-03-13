@@ -1,0 +1,13 @@
+services:
+  aigitcommit:
+    build:
+      context: .
+    network_mode: host
+    environment:
+      OPENAI_API_BASE: ""
+      OPENAI_API_TOKEN: ""
+      OPENAI_MODEL_NAME: ""
+      OPENAI_APT_PROXY: ""
+
+    volumes:
+      - .:/repo:ro
