@@ -13,8 +13,9 @@
  */
 
 use aigitcommit::cli::Cli;
+use aigitcommit::git::Git;
+use aigitcommit::openai;
 use aigitcommit::openai::OpenAI;
-use aigitcommit::{git, openai};
 use arboard::Clipboard;
 use async_openai::error::OpenAIError;
 use async_openai::types::{
@@ -26,7 +27,7 @@ use std::error::Error;
 use std::fs::File;
 use std::io::Write;
 use std::{env, fs};
-use tracing::{debug, trace, Level};
+use tracing::{Level, debug, trace};
 
 #[tokio::main]
 async fn main() -> std::result::Result<(), Box<dyn Error>> {
@@ -56,7 +57,7 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
 
     trace!("Specified repository directory: {:?}", repo_dir);
     // Check if the directory is a valid git repository
-    let repository = git::Git::new(repo_dir.to_str().unwrap_or("."))?;
+    let repository = Git::new(repo_dir.to_str().unwrap_or("."))?;
 
     // Get the diff and logs from the repository
     let diffs = repository.get_diff()?;
@@ -79,11 +80,11 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
     let client = openai::OpenAI::new();
 
     // Check if the OpenAI request is valid, if not, return error
-    if client.check().await.is_err() {
-        return Err(
-            "OpenAI API check with error, please check your API key or configuration".into(),
-        );
-    };
+    // if client.check().await.is_err() {
+    //     return Err(
+    //         "OpenAI API check with error, please check your API key or configuration".into(),
+    //     );
+    // };
 
     // Generate the prompt which will be sent to OpenAI API
     let content = OpenAI::prompt(&logs, &diffs)?;

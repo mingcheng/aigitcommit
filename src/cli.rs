@@ -9,13 +9,14 @@
  * File Created: 2025-03-03 19:31:27
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-03-04 16:31:19
+ * Last Modified: 2025-03-05 00:25:24
  */
 
 use clap::Parser;
 
 pub const CMD: &str = "aigitcommit";
 pub const CMD_ABOUT: &str = "A simple tool to help you write better Git commit messages using AI.";
+pub const CMD_ABOUT_URL: &str = "https://github.com/mingcheng/aigitcommit";
 
 #[derive(Debug, Parser)]
 #[command(name = CMD)]

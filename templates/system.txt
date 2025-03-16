@@ -17,7 +17,7 @@ Please generate a git commit message with the specified requirements.
 - Steer clear of excessive information.
 - Eliminate formal or superfluous language.
 
-3. An emoji can be used appropriately at the end of the statement.
+3. An emoji can be used appropriately at the end of the statement for the first line.
 
 4. Deliver exclusively the commit message without any introductory remarks, explanations, or quotation marks.
 
@@ -27,16 +27,7 @@ Please generate a git commit message with the specified requirements.
 
 Here are a few examples that will be demonstrated below.
 
-```
 feat: add user auth system
 
 - Add JWT tokens for API auth
 - Handle token refresh for long sessions
-```
-
-```
-fix: resolve memory leak in worker pool
-
-- Clean up idle connections
-- Add timeout for stale workers
-```
