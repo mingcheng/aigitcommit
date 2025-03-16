@@ -1,0 +1,33 @@
+# Rust build artifacts
+**/*.rs.bk
+*.pdb
+
+# Docker specific
+Dockerfile*
+docker-compose*
+.docker/
+
+# Git and version control
+.git*
+
+# Documentation
+/docs
+
+# Project build files
+Cargo.lock
+**/.cargo-ok
+
+# Test artifacts
+**/*test-*
+**/*Test*
+
+# Editor configs
+.editorconfig
+
+/target
+/.idea
+*~
+Thumbs.db
+.DS*
+/.vscode/*.log
+.*~
