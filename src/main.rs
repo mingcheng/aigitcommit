@@ -9,7 +9,7 @@
  * File Created: 2025-03-01 17:17:30
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-03-17 18:29:42
+ * Last Modified: 2025-03-18 12:22:56
  */
 
 use aigitcommit::cli::Cli;
@@ -27,7 +27,7 @@ use std::error::Error;
 use std::fs::File;
 use std::io::Write;
 use std::{env, fs};
-use tracing::{Level, debug, trace};
+use tracing::{debug, trace, Level};
 
 #[tokio::main]
 async fn main() -> std::result::Result<(), Box<dyn Error>> {

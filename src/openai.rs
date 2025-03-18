@@ -9,15 +9,15 @@
  * File Created: 2025-03-01 21:55:58
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-03-06 17:59:08
+ * Last Modified: 2025-03-17 22:53:48
  */
 use askama::Template;
 use async_openai::config::OPENAI_API_BASE;
 use async_openai::error::OpenAIError;
 use async_openai::{
-    Client,
     config::OpenAIConfig,
     types::{ChatCompletionRequestMessage, CreateChatCompletionRequestArgs},
+    Client,
 };
 use log::trace;
 use reqwest::header::{HeaderMap, HeaderValue};
@@ -66,7 +66,7 @@ impl OpenAI {
         });
 
         // Set up proxy if specified
-        let proxy_addr: String = env::var("OPENAI_APT_PROXY").unwrap_or_else(|_| String::from(""));
+        let proxy_addr: String = env::var("OPENAI_API_PROXY").unwrap_or_else(|_| String::from(""));
         if !proxy_addr.is_empty() {
             trace!("Using proxy: {}", proxy_addr);
             http_client_builder = http_client_builder.proxy(Proxy::all(proxy_addr).unwrap());

@@ -59,6 +59,22 @@ The way to use AIGitComment is really simple. For example, you can run `aigitcom
 
 If you would like more usage settings, just use `aigitcommit --help` to get more details.
 
+### Docker Image
+
+You can also utilise the Docker image without installing the binary executable file. 
+
+Simply enter the subsequent command or reference the `compose.yaml` file.
+
+```bash
+docker run --rm ghcr.io/mingcheng/aigitcommit:latest \
+  -v .:\repo:ro \
+  -e OPENAI_API_BASE='<openai api base>' \
+  -e OPENAI_API_TOKEN='<token>' \
+  -e OPENAI_MODEL_NAME='<model name>'
+```
+
+Notice: If you wish to utilise the `--commit` option, you must ensure that the `/repo` directory is writable.
+
 ### Git Hook
  
 The `AIGitCommit` also supports git hooks. To integrate the hook, simply copy the `hooks/prepare-commit-msg` file into the repository's `.git/hooks/prepare-commit-msg`, and you're done.
