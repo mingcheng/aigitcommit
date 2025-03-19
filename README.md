@@ -66,14 +66,31 @@ You can also utilise the Docker image without installing the binary executable f
 Simply enter the subsequent command or reference the `compose.yaml` file.
 
 ```bash
-docker run --rm ghcr.io/mingcheng/aigitcommit:latest \
-  -v .:\repo:ro \
-  -e OPENAI_API_BASE='<openai api base>' \
-  -e OPENAI_API_TOKEN='<token>' \
-  -e OPENAI_MODEL_NAME='<model name>'
+docker run \
+  --rm \
+  -v $PWD:/repo:ro \
+  -e OPENAI_API_BASE='<api base>' \
+  -e OPENAI_API_TOKEN='<api token>' \
+  -e OPENAI_MODEL_NAME='<model name>' \
+  -e OPENAI_API_PROXY='<the proxy address if you need>' \
+  ghcr.io/mingcheng/aigitcommit
 ```
 
-Notice: If you wish to utilise the `--commit` option, you must ensure that the `/repo` directory is writable.
+Notice: If you wish to utilise the `--commit` option, you must ensure that the `/repo` directory is writable:
+
+```bash
+docker run \
+  --rm \
+  -it \
+  -v $PWD:/repo:rw \
+  -e OPENAI_API_BASE='<api base>' \
+  -e OPENAI_API_TOKEN='<api token>' \
+  -e OPENAI_MODEL_NAME='<model name>' \
+  -e OPENAI_API_PROXY='<the proxy address if you need>' \
+  ghcr.io/mingcheng/aigitcommit --commit
+```
+
+Tips: You can add `--yes` options to skip the confirm.
 
 ### Git Hook
  
