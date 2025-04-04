@@ -9,7 +9,7 @@
  * File Created: 2025-03-01 21:55:54
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-03-05 10:12:04
+ * Last Modified: 2025-07-01 06:49:55
  */
 
 use git2::{Repository, RepositoryOpenFlags, StatusOptions};
@@ -23,15 +23,14 @@ pub struct Git {
 
 impl Git {
     pub fn new(path: &str) -> Result<Git, Box<dyn Error>> {
-        trace!("Opening repository at {}", path);
-        // let repository = Repository::open(path)?;
+        trace!("opening repository at {path}");
         let repository = Repository::open_ext(path, RepositoryOpenFlags::empty(), vec![path])?;
 
-        trace!("Repository opened successfully");
+        trace!("repository opened successfully");
         if let Some(work_dir) = repository.workdir() {
-            trace!("The repository workdir is: {:?}", work_dir);
+            trace!("the repository workdir is: {work_dir:?}");
         } else {
-            return Err("The repository has no workdir".into());
+            return Err("the repository has no workdir".into());
         }
 
         Ok(Git { repository })
@@ -57,11 +56,11 @@ impl Git {
             .commit(Some("HEAD"), &author, &committer, message, &tree, &[&head])
         {
             Ok(_) => {
-                trace!("Commit created successfully");
+                trace!("commit created successfully");
                 Ok(())
             }
             Err(e) => {
-                trace!("Failed to create commit: {}", e);
+                trace!("failed to create commit: {e}");
                 Err(Box::new(e))
             }
         }
@@ -74,12 +73,12 @@ impl Git {
         // Get the user email from the configuration
         match config.get_string("user.email") {
             Ok(email) => {
-                trace!("Author email: {}", email);
+                trace!("get author email: {email} from config `user.email`");
                 Ok(email)
             }
 
             Err(e) => {
-                trace!("Failed to get author email: {}", e);
+                trace!("failed to get author email: {e}");
                 Err(Box::new(e))
             }
         }
@@ -92,12 +91,12 @@ impl Git {
         // Get the user name from the configuration
         match config.get_string("user.name") {
             Ok(name) => {
-                trace!("Author name: {}", name);
+                trace!("get author name: {name} from config `user.name`");
                 Ok(name)
             }
 
             Err(e) => {
-                trace!("Failed to get author name: {}", e);
+                trace!("failed to get author name: {e}");
                 Err(Box::new(e))
             }
         }
@@ -182,7 +181,7 @@ mod tests {
         let repo_path = std::env::var("TEST_REPO_PATH")
             .map_err(|_| "TEST_REPO_PATH environment variable not set")?;
         if repo_path.is_empty() {
-            return Err("Please specify the repository path".into());
+            return Err("please specify the repository path".into());
         }
         Git::new(&repo_path)
     }
@@ -190,7 +189,7 @@ mod tests {
     #[test]
     fn test_new() {
         if setup().is_err() {
-            error!("Please specify the repository path");
+            error!("please specify the repository path");
             return;
         }
 
@@ -201,7 +200,7 @@ mod tests {
     fn test_get_author_email() {
         let repo = setup();
         if repo.is_err() {
-            error!("Please specify the repository path");
+            error!("please specify the repository path");
             return;
         }
 
@@ -214,7 +213,7 @@ mod tests {
     fn test_get_author_name() {
         let repo = setup();
         if repo.is_err() {
-            error!("Please specify the repository path");
+            error!("please specify the repository path");
             return;
         }
 
@@ -227,7 +226,7 @@ mod tests {
     fn test_logs() {
         let repo = setup();
         if repo.is_err() {
-            error!("Please specify the repository path");
+            error!("please specify the repository path");
             return;
         }
 
@@ -240,7 +239,7 @@ mod tests {
     fn test_diff() {
         let repo = setup();
         if repo.is_err() {
-            error!("Please specify the repository path");
+            error!("please specify the repository path");
             return;
         }
 
