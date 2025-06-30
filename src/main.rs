@@ -9,7 +9,7 @@
  * File Created: 2025-03-01 17:17:30
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-09-26 14:42:54
+ * Last Modified: 2025-09-26 14:43:10
  */
 
 use aigitcommit::cli::Cli;
@@ -93,9 +93,7 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
                 debug!("the model name `{}` is available", model_name);
             }
             Err(e) => {
-                return Err(
-                    format!("the model name `{}` is not available: {e}", model_name).into(),
-                );
+                return Err(format!("the model name `{model_name}` is not available: {e}").into());
             }
         }
     }
