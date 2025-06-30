@@ -9,7 +9,7 @@
  * File Created: 2025-03-01 21:55:58
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-07-11 17:45:46
+ * Last Modified: 2025-07-11 17:45:53
  */
 
 use crate::cli;
@@ -97,13 +97,10 @@ impl OpenAI {
                     list.data.iter().map(|m| &m.id).collect::<Vec<_>>()
                 );
                 if list.data.iter().any(|model| model.id == model_name) {
-                    debug!(
-                        "OpenAI API is reachable and model {} is available",
-                        model_name
-                    );
+                    debug!("OpenAI API is reachable and model {model_name} is available");
                     Ok(())
                 } else {
-                    Err(format!("Model {} not found", model_name).into())
+                    Err(format!("Model {model_name} not found").into())
                 }
             }
             Err(e) => Err(e.into()),
