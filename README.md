@@ -47,7 +47,7 @@ Initially, you must configure your `OPENAI_*` environment variables to request p
 - `OPENAI_API_BASE`: Your specified openAI request base
 - `OPENAI_MODEL_NAME`: Give the model name you wish to request
 - `OPENAI_API_PROXY`: The proxy address if you need to use a proxy
-- `AIGITCOMMIT_SIGNOFF`: If you want to sign off your commit messages, set this variable to `true`
+- `GIT_AUTO_SIGNOFF`: If you want to sign off your commit messages, set this variable to `true`
 
 If your network requirements a proxy to access the API service, you must specify the proxy address using the `OPENAI_API_PROXY` environment variable.
 
