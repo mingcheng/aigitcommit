@@ -9,7 +9,11 @@
  * File Created: 2025-03-01 17:17:30
  *
  * Modified By: mingcheng (mingcheng@apache.org)
+<<<<<<< HEAD
  * Last Modified: 2025-07-01 07:45:32
+=======
+ * Last Modified: 2025-07-01 07:18:20
+>>>>>>> bad3eab (docs: correct environment variable name in README 📚)
  */
 
 use aigitcommit::cli::Cli;
