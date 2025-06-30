@@ -12,6 +12,7 @@
  * Last Modified: 2025-07-11 17:45:46
  */
 
+use crate::cli;
 use askama::Template;
 use async_openai::config::OPENAI_API_BASE;
 use async_openai::error::OpenAIError;
@@ -27,8 +28,6 @@ use std::env;
 use std::error::Error;
 use std::time::Duration;
 use tracing::debug;
-
-use crate::cli;
 
 #[derive(Template)]
 #[template(path = "user.txt")]
@@ -89,11 +88,24 @@ impl OpenAI {
         OpenAI { client }
     }
 
-    #[deprecated]
-    /// Check if the OpenAI API is reachable.
-    pub async fn check(&self) -> Result<(), Box<dyn Error>> {
+    /// Check if the OpenAI API and specified model are reachable and available.
+    pub async fn check_model(&self, model_name: &str) -> Result<(), Box<dyn Error>> {
         match self.client.models().list().await {
-            Ok(_) => Ok(()),
+            Ok(list) => {
+                debug!(
+                    "Available models: {:?}",
+                    list.data.iter().map(|m| &m.id).collect::<Vec<_>>()
+                );
+                if list.data.iter().any(|model| model.id == model_name) {
+                    debug!(
+                        "OpenAI API is reachable and model {} is available",
+                        model_name
+                    );
+                    Ok(())
+                } else {
+                    Err(format!("Model {} not found", model_name).into())
+                }
+            }
             Err(e) => Err(e.into()),
         }
     }
