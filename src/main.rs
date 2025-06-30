@@ -9,7 +9,7 @@
  * File Created: 2025-03-01 17:17:30
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-07-11 17:44:44
+ * Last Modified: 2025-07-11 17:45:08
  */
 
 use aigitcommit::cli::Cli;
