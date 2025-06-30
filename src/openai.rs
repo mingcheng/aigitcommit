@@ -59,14 +59,14 @@ impl OpenAI {
 
         // Set up HTTP client builder with default headers
         let mut http_client_builder = ClientBuilder::new()
-            .user_agent(format!("{}({})", CMD, CMD_ABOUT))
+            .user_agent(format!("{} ({})", CMD, CMD_ABOUT))
             .default_headers({
                 let mut headers = HeaderMap::new();
                 headers.insert("HTTP-Referer", HeaderValue::from_static(CMD_ABOUT_URL));
                 headers.insert("X-Title", HeaderValue::from_static(CMD));
-                headers.insert("X-Client", HeaderValue::from_static(CMD));
                 headers.insert("X-Client-Type", HeaderValue::from_static("CLI"));
                 headers
+                
             });
 
         // Set up proxy if specified
