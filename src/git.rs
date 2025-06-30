@@ -9,7 +9,7 @@
  * File Created: 2025-03-01 21:55:54
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-09-26 14:40:53
+ * Last Modified: 2025-09-26 14:41:38
  */
 
 use git2::{Repository, RepositoryOpenFlags, Signature, StatusOptions};
@@ -222,7 +222,7 @@ mod tests {
     fn test_get_author_email() {
         let repo = setup();
         if repo.is_err() {
-            error!("Please specify the repository path");
+            error!("please specify the repository path");
             return;
         }
 
@@ -235,7 +235,7 @@ mod tests {
     fn test_get_author_name() {
         let repo = setup();
         if repo.is_err() {
-            error!("Please specify the repository path");
+            error!("please specify the repository path");
             return;
         }
 
