@@ -9,7 +9,7 @@
  * File Created: 2025-03-01 17:17:30
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-07-01 07:05:11
+ * Last Modified: 2025-07-01 07:18:20
  */
 
 use aigitcommit::cli::Cli;
@@ -128,12 +128,13 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
     };
 
     // Detect auto signoff from environment variable
-    let need_signoff_from_env = env::var("GIT_AUTO_SIGNOFF")
-        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-        .unwrap_or(false);
+    let need_signoff = cli.signoff
+        || env::var("GIT_AUTO_SIGNOFF")
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
 
     // If the --signoff option is enabled, add signoff to the commit message
-    if cli.signoff || need_signoff_from_env {
+    if need_signoff {
         trace!("signoff option is enabled, will add signoff to the commit message");
         let (author_name, author_email) = (
             repository.get_author_name()?,
