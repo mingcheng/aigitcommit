@@ -108,7 +108,7 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
     ];
 
     // Send the request to OpenAI API and get the response
-    let result = match client.chat(&model_name.to_string(), messages).await {
+    let mut result = match client.chat(&model_name.to_string(), messages).await {
         Ok(s) => s,
         Err(e) => {
             let message = match e {
@@ -126,6 +126,24 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
             return Err(message.into());
         }
     };
+
+    // Detect auto signoff from environment variable
+    let need_signoff_from_env = env::var("GIT_AUTO_SIGNOFF")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+
+    // If the --signoff option is enabled, add signoff to the commit message
+    if cli.signoff || need_signoff_from_env {
+        trace!("signoff option is enabled, will add signoff to the commit message");
+        let (author_name, author_email) = (
+            repository.get_author_name()?,
+            repository.get_author_email()?,
+        );
+
+        // Add signoff to the commit message
+        let signoff = format!("\n\nSigned-off-by: {} <{}>", author_name, author_email);
+        result.push_str(&signoff);
+    }
 
     trace!("write to stdout, and finish the process");
     writeln!(std::io::stdout(), "{}", result)?;
