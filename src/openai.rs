@@ -9,7 +9,7 @@
  * File Created: 2025-03-01 21:55:58
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-03-17 22:53:48
+ * Last Modified: 2025-07-01 06:34:43
  */
 use askama::Template;
 use async_openai::config::OPENAI_API_BASE;
@@ -68,7 +68,7 @@ impl OpenAI {
         // Set up proxy if specified
         let proxy_addr: String = env::var("OPENAI_API_PROXY").unwrap_or_else(|_| String::from(""));
         if !proxy_addr.is_empty() {
-            trace!("Using proxy: {}", proxy_addr);
+            trace!("Using proxy: {proxy_addr}");
             http_client_builder = http_client_builder.proxy(Proxy::all(proxy_addr).unwrap());
         }
 
@@ -76,7 +76,7 @@ impl OpenAI {
             env::var("OPENAI_REQUEST_TIMEOUT").unwrap_or_else(|_| String::from(""));
         if !request_timeout.is_empty() {
             if let Ok(timeout) = request_timeout.parse::<u64>() {
-                trace!("Setting request timeout to: {}ms", request_timeout);
+                trace!("Setting request timeout to: {request_timeout}ms");
                 http_client_builder = http_client_builder.timeout(Duration::from_millis(timeout));
             }
         }
