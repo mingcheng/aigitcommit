@@ -9,7 +9,7 @@
  * File Created: 2025-03-01 17:17:30
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-09-26 14:41:21
+ * Last Modified: 2025-09-26 14:41:46
  */
 
 use aigitcommit::cli::Cli;
@@ -147,7 +147,7 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
         );
 
         // Add signoff to the commit message
-        let signoff = format!("\n\nSigned-off-by: {} <{}>", author_name, author_email);
+        let signoff = format!("\n\nSigned-off-by: {author_name} <{author_email}>");
         result.push_str(&signoff);
     }
 
