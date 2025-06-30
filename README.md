@@ -14,6 +14,7 @@ A simple tool to help you write better Git commit messages using AI.
 - Easy-to-use command-line interface
 - By using the libgit2 library, there is no need to call an external command for security reasons
 - The system supports multiple AI models that are compatible with the OpenAI API
+- Auto sign-off commit messages, if specified environment variable `AIGITCOMMIT_SIGNOFF` is set to `true`
 - Socks5 and HTTP proxy supported
 
 ## How It Works
@@ -45,6 +46,8 @@ Initially, you must configure your `OPENAI_*` environment variables to request p
 - `OPENAI_API_TOKEN`: Your individual OpenAI token
 - `OPENAI_API_BASE`: Your specified openAI request base
 - `OPENAI_MODEL_NAME`: Give the model name you wish to request
+- `OPENAI_API_PROXY`: The proxy address if you need to use a proxy
+- `GIT_AUTO_SIGNOFF`: If you want to sign off your commit messages, set this variable to `true`
 
 If your network requirements a proxy to access the API service, you must specify the proxy address using the `OPENAI_API_PROXY` environment variable. 
 

@@ -9,7 +9,7 @@
  * File Created: 2025-03-01 17:17:30
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-03-18 12:22:56
+ * Last Modified: 2025-07-01 07:18:20
  */
 
 use aigitcommit::cli::Cli;
@@ -43,7 +43,7 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
             .init();
 
         trace!(
-            "Verbose mode enabled, set the log level to TRACE. It will makes a little bit noise."
+            "verbose mode enabled, set the log level to TRACE. It will makes a little bit noise."
         );
     }
 
@@ -52,18 +52,18 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
 
     // Check if the directory is empty
     if !repo_dir.is_dir() {
-        return Err("The specified path is not a directory".into());
+        return Err("the specified path is not a directory".into());
     }
 
-    trace!("Specified repository directory: {:?}", repo_dir);
+    trace!("specified repository directory: {:?}", repo_dir);
     // Check if the directory is a valid git repository
     let repository = Git::new(repo_dir.to_str().unwrap_or("."))?;
 
     // Get the diff and logs from the repository
     let diffs = repository.get_diff()?;
-    debug!("Got diff size is {}", diffs.len());
+    debug!("got diff size is {}", diffs.len());
     if diffs.is_empty() {
-        return Err("No diff found".into());
+        return Err("no diff found".into());
     }
 
     // Get the last 5 commit logs
@@ -108,7 +108,7 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
     ];
 
     // Send the request to OpenAI API and get the response
-    let result = match client.chat(&model_name.to_string(), messages).await {
+    let mut result = match client.chat(&model_name.to_string(), messages).await {
         Ok(s) => s,
         Err(e) => {
             let message = match e {
@@ -120,15 +120,34 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
                 OpenAIError::FileSaveError(_) | OpenAIError::FileReadError(_) => {
                     "io error".to_string()
                 }
-                OpenAIError::ApiError(e) => format!("api error {:?}", e),
+                OpenAIError::ApiError(e) => format!("api error {e:?}"),
             };
 
             return Err(message.into());
         }
     };
 
+    // Detect auto signoff from environment variable
+    let need_signoff = cli.signoff
+        || env::var("GIT_AUTO_SIGNOFF")
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
+
+    // If the --signoff option is enabled, add signoff to the commit message
+    if need_signoff {
+        trace!("signoff option is enabled, will add signoff to the commit message");
+        let (author_name, author_email) = (
+            repository.get_author_name()?,
+            repository.get_author_email()?,
+        );
+
+        // Add signoff to the commit message
+        let signoff = format!("\n\nSigned-off-by: {author_name} <{author_email}>");
+        result.push_str(&signoff);
+    }
+
     trace!("write to stdout, and finish the process");
-    writeln!(std::io::stdout(), "{}", result)?;
+    writeln!(std::io::stdout(), "{result}")?;
 
     // Copy the commit message to clipboard if the --copy option is enabled
     if cli.copy {
@@ -136,7 +155,7 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
         clipboard.set_text(&result)?;
         writeln!(
             std::io::stdout(),
-            "The commit message has been copied to clipboard."
+            "the commit message has been copied to clipboard."
         )?;
     }
 
@@ -155,7 +174,7 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
                     writeln!(std::io::stdout(), "commit successful!")?;
                 }
                 Err(e) => {
-                    writeln!(std::io::stderr(), "commit failed: {}", e)?;
+                    writeln!(std::io::stderr(), "commit failed: {e}")?;
                 }
             }
         }
@@ -171,7 +190,7 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
         file.write_all(result.as_bytes())?;
         file.flush()?;
 
-        writeln!(std::io::stdout(), "commit message saved to {}", &save_path)?;
+        writeln!(std::io::stdout(), "commit message saved to {save_path}")?;
     }
 
     Ok(())
