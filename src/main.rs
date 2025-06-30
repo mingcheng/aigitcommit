@@ -79,18 +79,26 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
     // Instantiate OpenAI client, ready to send requests to the OpenAI API
     let client = openai::OpenAI::new();
 
-    // Check if the OpenAI request is valid, if not, return error
-    // if client.check().await.is_err() {
-    //     return Err(
-    //         "OpenAI API check with error, please check your API key or configuration".into(),
-    //     );
-    // };
-
     // Generate the prompt which will be sent to OpenAI API
     let content = OpenAI::prompt(&logs, &diffs)?;
 
     // Get the specified model name from environment variable, default to "gpt-4"
     let model_name = env::var("OPENAI_MODEL_NAME").unwrap_or_else(|_| String::from("gpt-4"));
+
+    // Check if the model name is valid
+    if cli.check {
+        trace!("check option is enabled, will check the OpenAI API key and model name");
+        match client.check_model(&model_name).await {
+            Ok(()) => {
+                debug!("the model name `{}` is available", model_name);
+            }
+            Err(e) => {
+                return Err(
+                    format!("the model name `{}` is not available: {e}", model_name).into(),
+                );
+            }
+        }
+    }
 
     // Load the system prompt from the template file
     let system_prompt = include_str!("../templates/system.txt");
