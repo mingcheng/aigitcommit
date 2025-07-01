@@ -14,7 +14,7 @@ A simple tool to help you write better Git commit messages using AI.
 - Easy-to-use command-line interface
 - By using the libgit2 library, there is no need to call an external command for security reasons
 - The system supports multiple AI models that are compatible with the OpenAI API
-- Auto sign-off commit messages, if specified environment variable `AIGITCOMMIT_SIGNOFF` is set to `true`
+- Auto sign-off commit messages, if specified environment is set to `true`
 - Socks5 and HTTP proxy supported
 
 ## How It Works
