@@ -1,6 +1,7 @@
 # AIGitCommit
 
 [![Cargo Build & Test](https://github.com/mingcheng/aigitcommit/actions/workflows/rust.yml/badge.svg?branch=main)](https://github.com/mingcheng/aigitcommit/actions/workflows/rust.yml)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fmingcheng%2Faigitcommit.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fmingcheng%2Faigitcommit?ref=badge_shield)
 
 ![screenshots](./assets/screenshots.png)
 
@@ -127,3 +128,6 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 This project is licensed under the MIT License - see the LICENSE file for details.
 
 `- eof -`
+
+
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fmingcheng%2Faigitcommit.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fmingcheng%2Faigitcommit?ref=badge_large)
