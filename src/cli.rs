@@ -41,6 +41,14 @@ If not specified, the current directory will be used"#,
 
     #[arg(
         long,
+        help = "Check the openai api key and model name whether is available",
+        default_value_t = false,
+        required = false
+    )]
+    pub check: bool,
+
+    #[arg(
+        long,
         help = "Prompt the commit after generating the message",
         default_value_t = false,
         required = false

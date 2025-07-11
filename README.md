@@ -19,7 +19,7 @@ A simple tool to help you write better Git commit messages using AI.
 
 ## How It Works
 
-AIGitCommit looks at your Git staged changes and uses AI to make commit lines that are clear and helpful. 
+AIGitCommit looks at your Git staged changes and uses AI to make commit lines that are clear and helpful.
 
 It looks at the diff result and uses machine learning to figure out what your changes were meant to do and why you made them. It then generates a commit message that is clear and helpful.
 
@@ -49,7 +49,7 @@ Initially, you must configure your `OPENAI_*` environment variables to request p
 - `OPENAI_API_PROXY`: The proxy address if you need to use a proxy
 - `GIT_AUTO_SIGNOFF`: If you want to sign off your commit messages, set this variable to `true`
 
-If your network requirements a proxy to access the API service, you must specify the proxy address using the `OPENAI_API_PROXY` environment variable. 
+If your network requirements a proxy to access the API service, you must specify the proxy address using the `OPENAI_API_PROXY` environment variable.
 
 For instance, `http://127.0.0.1:1080` is suitable for an HTTP proxy, while `socks://127.0.0.1:1086` is an appropriate choice for a Socks5 proxy.
 
@@ -64,7 +64,7 @@ If you would like more usage settings, just use `aigitcommit --help` to get more
 
 ### Docker Image
 
-You can also utilise the Docker image without installing the binary executable file. 
+You can also utilise the Docker image without installing the binary executable file.
 
 Simply enter the subsequent command or reference the `compose.yaml` file.
 
@@ -96,7 +96,7 @@ docker run \
 Tips: You can add `--yes` options to skip the confirm.
 
 ### Git Hook
- 
+
 The `AIGitCommit` also supports git hooks. To integrate the hook, simply copy the `hooks/prepare-commit-msg` file into the repository's `.git/hooks/prepare-commit-msg`, and you're done.
 
 You can make it global by using Git's `core.hooksPath` instead of setting it up per repository.
