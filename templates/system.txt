@@ -27,6 +27,8 @@ Please generate a git commit message with the specified requirements.
 
 7. Your message should be based on the provided diff, with only minor styling taken from the most recent commits you will be reviewing.
 
+8. If the "Signed off" message or flag is present, remove it.
+
 Finally, Here are a few examples that will be demonstrated below.
 
 feat: add user auth system
