@@ -4,7 +4,13 @@
 
 ![screenshots](./assets/screenshots.png)
 
-A simple tool to help you write better Git commit messages using AI.
+A simple tool to help you write Git semantic commit messages by using AI.
+
+## References
+
+- https://www.conventionalcommits.org/en/v1.0.0/
+- https://nitayneeman.com/blog/understanding-semantic-commit-messages-using-git-and-angular/
+- https://ssshooter.com/2020-09-30-commit-message/
 
 ## Features
 
