@@ -1,5 +1,5 @@
 /*!
- * Copyright (c) 2025 Hangzhou Guanwaii Technology Co,.Ltd.
+ * Copyright (c) 2025 Hangzhou Guanwaii Technology Co., Ltd.
  *
  * This source code is licensed under the MIT License,
  * which is located in the LICENSE file in the source tree's root directory.
@@ -9,7 +9,7 @@
  * File Created: 2025-10-16 15:07:05
  *
  * Modified By: mingcheng <mingcheng@apache.org>
- * Last Modified: 2025-10-16 16:56:37
+ * Last Modified: 2025-10-16 22:55:18
  */
 
 use git2::{Repository as _Repo, RepositoryOpenFlags, Signature};
@@ -202,6 +202,7 @@ impl Repository {
             if let Some(path) = delta.new_file().path() {
                 if let Some(filename) = path.file_name() {
                     if excluded_files.contains(&filename.to_string_lossy().as_ref()) {
+                        warn!("skipping excluded file: {}", filename.to_string_lossy());
                         return true; // Skip this file
                     }
                 }
