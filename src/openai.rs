@@ -9,10 +9,10 @@
  * File Created: 2025-03-01 21:55:58
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-09-26 14:43:10
+ * Last Modified: 2025-09-26 15:51:48
  */
 
-use crate::cli;
+use crate::cli::{CMD, CMD_ABOUT, CMD_ABOUT_URL};
 use askama::Template;
 use async_openai::config::OPENAI_API_BASE;
 use async_openai::error::OpenAIError;
@@ -55,15 +55,19 @@ impl OpenAI {
             .with_api_base(
                 env::var("OPENAI_API_BASE").unwrap_or_else(|_| String::from(OPENAI_API_BASE)),
             )
-            .with_org_id(cli::CMD);
+            .with_org_id(CMD);
 
         // Set up HTTP client builder with default headers
-        let mut http_client_builder = ClientBuilder::new().user_agent(cli::CMD).default_headers({
-            let mut headers = HeaderMap::new();
-            headers.insert("HTTP-Referer", HeaderValue::from_static(cli::CMD_ABOUT_URL));
-            headers.insert("X-Title", HeaderValue::from_static(cli::CMD));
-            headers
-        });
+        let mut http_client_builder = ClientBuilder::new()
+            .user_agent(format!("{}({})", CMD, CMD_ABOUT))
+            .default_headers({
+                let mut headers = HeaderMap::new();
+                headers.insert("HTTP-Referer", HeaderValue::from_static(CMD_ABOUT_URL));
+                headers.insert("X-Title", HeaderValue::from_static(CMD));
+                headers.insert("X-Client", HeaderValue::from_static(CMD));
+                headers.insert("X-Client-Type", HeaderValue::from_static("CLI"));
+                headers
+            });
 
         // Set up proxy if specified
         let proxy_addr: String = env::var("OPENAI_API_PROXY").unwrap_or_else(|_| String::from(""));
