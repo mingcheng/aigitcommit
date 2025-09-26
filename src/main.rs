@@ -9,7 +9,7 @@
  * File Created: 2025-03-01 17:17:30
  *
  * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-09-26 14:43:17
+ * Last Modified: 2025-09-26 15:45:37
  */
 
 use aigitcommit::cli::Cli;
@@ -88,6 +88,8 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
     // Check if the model name is valid
     if cli.check {
         trace!("check option is enabled, will check the OpenAI API key and model name");
+        debug!("the model name is `{}`", &model_name);
+
         match client.check_model(&model_name).await {
             Ok(()) => {
                 debug!("the model name `{}` is available", model_name);
