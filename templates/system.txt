@@ -30,19 +30,23 @@ Please generate a git commit message with the specified requirements.
 - Use imperative, present tense
 - Be technical and objective
 - Eliminate unnecessary words
+- No personal pronouns
 
 4. Formatting Principles:
 
-- Capitalize first letter
-- No period in header
+- Capitalize first letter in the header
+- No trailing period in the header
 - Blank line between header and body
 - Body uses bullet points
+- No capitalization in the body at the start of bullet points
 - Maintain consistent language
+- The body should not exceed 72-80 characters per line
+- The body should be sorted by priority in modifications
 
 5. Optional Emoji:
 
 - Symbolically represent commit type
-- Enhance readability
+- Only to enhance readability
 - Not mandatory
 
 6. Avoid:
@@ -51,16 +55,17 @@ Please generate a git commit message with the specified requirements.
 - Signed-off messages
 - Overly detailed explanations
 - Informal language
+- Duplicate or similar descriptions
 
 7. Don't include any of the illustrations in your response.
 
 8. Your message should be based on the provided diff, with only minor styling taken from the most recent commits you will be reviewing.
 
-9. Directly output the above requirements without any additional content, including explanations, etc.
+9. Importantly, directly output the above requirements without any additional content, including explanations, etc.
 
 Finally, Here are a few examples that will be demonstrated below.
 
 feat: add user auth system
 
-- Add JWT tokens for API auth
-- Handle token refresh for long sessions
+- add JWT tokens for API auth
+- handle token refresh for long sessions
