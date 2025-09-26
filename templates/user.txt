@@ -1,11 +1,15 @@
-The latest commit history from the repository is shown here, quote by using the "```" charsets.
+The latest commit history from the repository is shown below, including the recent git commit messages:
 
 ```
 {{logs}}
 ```
 
-Additionally, a variety of content is provided below, quote by using the "```" charsets.
+Please note that some commits may not relevantly affect the current code, as they might pertain to other changes.
+
+Additionally, a variety of content is provided below:
 
 ```
 {{diffs}}
 ```
+
+Note that the main changes are in the diffs content above, while the commit history is provided for context.
