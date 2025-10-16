@@ -12,8 +12,9 @@
  * Last Modified: 2025-09-26 15:45:37
  */
 
-use aigitcommit::cli::Cli;
-use aigitcommit::git::Git;
+use aigitcommit::cli::{print_table, Cli};
+use aigitcommit::git::message::GitMessage;
+use aigitcommit::git::repository::Repository;
 use aigitcommit::openai;
 use aigitcommit::openai::OpenAI;
 use arboard::Clipboard;
@@ -57,7 +58,7 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
 
     trace!("specified repository directory: {:?}", repo_dir);
     // Check if the directory is a valid git repository
-    let repository = Git::new(repo_dir.to_str().unwrap_or("."))?;
+    let repository = Repository::new(repo_dir.to_str().unwrap_or("."))?;
 
     // Get the diff and logs from the repository
     let diffs = repository.get_diff()?;
@@ -135,20 +136,28 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
         }
     };
 
+    let (title, content) = result.split_once("\n\n").unwrap();
+
     // Detect auto signoff from environment variable
     let need_signoff = cli.signoff
         || env::var("GIT_AUTO_SIGNOFF")
             .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
             .unwrap_or(false);
 
+    let message: GitMessage = GitMessage::new(&repository, title, content, need_signoff)?;
+
     // Write the commit message to stdout
     trace!("write to stdout, and finish the process");
-    writeln!(std::io::stdout(), "{result}")?;
+    if cli.print_table {
+        print_table(&message.title, &message.content);
+    } else {
+        writeln!(std::io::stdout(), "{}", message)?;
+    }
 
     // Copy the commit message to clipboard if the --copy option is enabled
     if cli.copy {
         let mut clipboard = Clipboard::new()?;
-        clipboard.set_text(&result)?;
+        clipboard.set_text(format!("{}", &message))?;
         writeln!(
             std::io::stdout(),
             "the commit message has been copied to clipboard."
@@ -165,7 +174,7 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
 
         // Prompt the user for confirmation if --yes option is not enabled
         if cli.yes || confirm.interact()? {
-            match repository.commit(&result, need_signoff) {
+            match repository.commit(&message) {
                 Ok(_) => {
                     writeln!(std::io::stdout(), "commit successful!")?;
                 }

@@ -132,6 +132,9 @@ impl OpenAI {
             .messages(message)
             .build()?;
 
+        // trace!("Request: {:?}", request);
+        trace!("✨ Using model: {}", model_name);
+
         let response = match self.client.chat().create(request).await {
             Ok(s) => s,
             Err(e) => return Err(e),
@@ -167,19 +170,18 @@ impl OpenAI {
 
 #[cfg(test)]
 mod test {
+    use super::*;
+    use crate::git::repository::Repository;
     use tracing::error;
 
-    use super::*;
-    use crate::git::Git;
-
-    fn setup_repo() -> Result<Git, Box<dyn Error>> {
+    fn setup_repo() -> Result<Repository, Box<dyn Error>> {
         let repo_path = std::env::var("TEST_REPO_PATH")
             .map_err(|_| "TEST_REPO_PATH environment variable not set")?;
         if repo_path.is_empty() {
             return Err("Please specify the repository path".into());
         }
 
-        Git::new(&repo_path)
+        Repository::new(&repo_path)
     }
 
     #[test]
