@@ -13,14 +13,13 @@
  */
 
 use clap::Parser;
-
-pub const CMD: &str = "aigitcommit";
-pub const CMD_ABOUT: &str = "A simple tool to help you write better Git commit messages using AI.";
-pub const CMD_ABOUT_URL: &str = "https://github.com/mingcheng/aigitcommit";
+// Include the generated-file as a separate module
+mod built_info {
+    include!(concat!(env!("OUT_DIR"), "/built.rs"));
+}
 
 #[derive(Debug, Parser)]
-#[command(name = CMD)]
-#[command(about = CMD_ABOUT, version)]
+#[command(name = built_info::PKG_NAME, about = built_info::PKG_DESCRIPTION, version = built_info::PKG_VERSION, author = built_info::PKG_AUTHORS)]
 pub struct Cli {
     #[arg(
         default_value = ".",

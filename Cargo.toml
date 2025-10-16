@@ -6,7 +6,7 @@ description = "A simple git commit message generator by OpenAI compaction model.
 license-file = "LICENSE"
 readme = "README.md"
 keywords = ["git", "openai", "tools", "grok"]
-authors = ["mingcheng <mingcheng@apache.org"]
+authors = ["mingcheng <mingcheng@apache.org>"]
 repository = "https://github.com/mingcheng/aigitcommit"
 homepage = "https://github.com/mingcheng/aigitcommit"
 exclude = ["assets/*", "hooks/*"]
@@ -48,3 +48,6 @@ opt-level = "z"
 lto = true
 codegen-units = 1
 panic = "abort"
+
+[build-dependencies]
+built = "0.8"

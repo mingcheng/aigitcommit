@@ -12,7 +12,11 @@
  * Last Modified: 2025-09-26 15:51:48
  */
 
-use crate::cli::{CMD, CMD_ABOUT, CMD_ABOUT_URL};
+// Include the generated-file as a separate module
+mod built_info {
+    include!(concat!(env!("OUT_DIR"), "/built.rs"));
+}
+
 use askama::Template;
 use async_openai::config::OPENAI_API_BASE;
 use async_openai::error::OpenAIError;
@@ -55,18 +59,24 @@ impl OpenAI {
             .with_api_base(
                 env::var("OPENAI_API_BASE").unwrap_or_else(|_| String::from(OPENAI_API_BASE)),
             )
-            .with_org_id(CMD);
+            .with_org_id(built_info::PKG_NAME);
 
         // Set up HTTP client builder with default headers
         let mut http_client_builder = ClientBuilder::new()
-            .user_agent(format!("{} ({})", CMD, CMD_ABOUT))
+            .user_agent(format!(
+                "{} ({})",
+                built_info::PKG_NAME,
+                built_info::PKG_DESCRIPTION
+            ))
             .default_headers({
                 let mut headers = HeaderMap::new();
-                headers.insert("HTTP-Referer", HeaderValue::from_static(CMD_ABOUT_URL));
-                headers.insert("X-Title", HeaderValue::from_static(CMD));
+                headers.insert(
+                    "HTTP-Referer",
+                    HeaderValue::from_static(built_info::PKG_HOMEPAGE),
+                );
+                headers.insert("X-Title", HeaderValue::from_static(built_info::PKG_NAME));
                 headers.insert("X-Client-Type", HeaderValue::from_static("CLI"));
                 headers
-                
             });
 
         // Set up proxy if specified
