@@ -202,10 +202,10 @@ mod test {
         assert!(logs.is_ok());
 
         let diff_content = diffs.unwrap();
-        assert!(diff_content.len() > 0);
+        assert!(!diff_content.is_empty());
 
         let logs_content = logs.unwrap();
-        assert!(logs_content.len() > 0);
+        assert!(!logs_content.is_empty());
 
         let result = OpenAI::prompt(&logs_content, &diff_content).unwrap();
         assert!(!result.is_empty());

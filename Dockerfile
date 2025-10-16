@@ -1,39 +1,78 @@
-FROM rust:alpine AS builder
+# Stage 1: Dependencies - Cache Rust dependencies separately for faster rebuilds
+FROM rust:alpine AS dependencies
 LABEL maintainer="mingcheng <mingcheng@apache.org>"
 
-# Set the working directory
-ENV BUILD_DIR=/build
+# Install build dependencies required for compilation
+RUN apk add --no-cache \
+    build-base \
+    git \
+    musl-dev \
+    libressl-dev \
+    pkgconfig \
+    perl
 
-# Add necessary build dependencies
-RUN apk add --no-cache build-base git musl-dev libressl-dev pkgconfig perl
+# Ensure we're using the latest stable Rust toolchain
+RUN rustup default stable && rustup update stable
 
-# Update the latest stable version of rust toolkit
-RUN rustup default stable && rustup override set stable
+# Set the working directory for dependency building
+WORKDIR /build
 
-# Start building the application
-COPY . ${BUILD_DIR}
-WORKDIR ${BUILD_DIR}
+# Copy only dependency manifests first to leverage Docker layer caching
+COPY Cargo.toml Cargo.lock ./
 
-# Build the application
-RUN cargo update \
-    && cargo build --release \
-    && cp target/release/aigitcommit /bin/aigitcommit
+# Create a dummy source file to build dependencies
+RUN mkdir src && \
+    echo "fn main() {}" > src/main.rs && \
+    cargo build --release && \
+    rm -rf src
 
-# Stage2
-FROM alpine
+# Stage 2: Builder - Build the actual application
+FROM dependencies AS builder
 
-# # Install timezone data and set timezone
-ENV TZ="Asia/Shanghai"
-RUN apk update \
-    && apk add --no-cache tzdata git curl \
-    && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime \
-    && echo $TZ > /etc/timezone
+# Copy the actual source code
+COPY . .
 
-# # Copy the binary from the builder stage
+# Build the application with optimizations
+RUN cargo build --release && \
+    strip target/release/aigitcommit && \
+    cp target/release/aigitcommit /bin/aigitcommit
+
+# Stage 3: Runtime - Create minimal runtime image
+FROM alpine AS runtime
+
+# Set timezone (configurable via build args)
+ARG TZ=Asia/Shanghai
+ENV TZ=${TZ}
+
+# Install only runtime dependencies
+RUN apk add --no-cache \
+    tzdata \
+    git \
+    curl \
+    ca-certificates && \
+    ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && \
+    echo $TZ > /etc/timezone && \
+    # Clean up apk cache to reduce image size
+    rm -rf /var/cache/apk/*
+
+# Copy the compiled binary from builder stage
 COPY --from=builder /bin/aigitcommit /bin/aigitcommit
 
-# # Set the working directory
+# Create a non-root user for security
+RUN addgroup -g 1000 aigit && \
+    adduser -D -u 1000 -G aigit aigit
+
+# Set the working directory
 WORKDIR /repo
 
-# # Define the command to run the application
+# Change ownership of the working directory
+RUN chown -R aigit:aigit /repo
+
+# Switch to non-root user
+USER aigit
+
+# Define the entrypoint
 ENTRYPOINT ["/bin/aigitcommit"]
+
+# Default command (can be overridden)
+CMD ["--help"]
