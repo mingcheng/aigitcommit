@@ -21,9 +21,9 @@ use askama::Template;
 use async_openai::config::OPENAI_API_BASE;
 use async_openai::error::OpenAIError;
 use async_openai::{
+    Client,
     config::OpenAIConfig,
     types::{ChatCompletionRequestMessage, CreateChatCompletionRequestArgs},
-    Client,
 };
 use log::trace;
 use reqwest::header::{HeaderMap, HeaderValue};
@@ -88,11 +88,11 @@ impl OpenAI {
 
         let request_timeout =
             env::var("OPENAI_REQUEST_TIMEOUT").unwrap_or_else(|_| String::from(""));
-        if !request_timeout.is_empty() {
-            if let Ok(timeout) = request_timeout.parse::<u64>() {
-                trace!("Setting request timeout to: {request_timeout}ms");
-                http_client_builder = http_client_builder.timeout(Duration::from_millis(timeout));
-            }
+        if !request_timeout.is_empty()
+            && let Ok(timeout) = request_timeout.parse::<u64>()
+        {
+            trace!("Setting request timeout to: {request_timeout}ms");
+            http_client_builder = http_client_builder.timeout(Duration::from_millis(timeout));
         }
 
         // Set up timeout and build the HTTP client

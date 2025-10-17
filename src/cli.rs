@@ -76,15 +76,31 @@ If not specified, the current directory will be used"#,
         default_value_t = false,
         required = false
     )]
-    pub copy: bool,
+    pub copy_to_clipboard: bool,
+
+    #[arg(
+        long,
+        help = "Print the commit message in JSON format",
+        default_value_t = false,
+        required = false
+    )]
+    pub json: bool,
 
     #[arg(
         long,
         help = "Print the commit message in a table format",
-        default_value_t = true,
+        default_value_t = false,
         required = false
     )]
-    pub print_table: bool,
+    pub no_table: bool,
+
+    #[arg(
+        long,
+        help = "Check current environment variables for OpenAI API key and model name",
+        default_value_t = false,
+        required = false
+    )]
+    pub check_env: bool,
 
     #[arg(
         long,

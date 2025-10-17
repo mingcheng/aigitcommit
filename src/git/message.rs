@@ -1,5 +1,5 @@
 /*!
- * Copyright (c) 2025 Hangzhou Guanwaii Technology Co,.Ltd.
+ * Copyright (c) 2025 Hangzhou Guanwaii Technology Co., Ltd.
  *
  * This source code is licensed under the MIT License,
  * which is located in the LICENSE file in the source tree's root directory.
@@ -9,7 +9,7 @@
  * File Created: 2025-10-16 15:06:58
  *
  * Modified By: mingcheng <mingcheng@apache.org>
- * Last Modified: 2025-10-16 17:03:29
+ * Last Modified: 2025-10-17 18:22:55
  */
 
 use crate::git::repository::Repository;
@@ -21,6 +21,7 @@ use tracing::trace;
 /// A commit message consists of:
 /// - `title`: The first line (subject line), typically 50-72 characters
 /// - `content`: The body of the commit message with detailed description
+#[derive(Debug, serde::Serialize)]
 pub struct GitMessage {
     pub title: String,
     pub content: String,

@@ -12,7 +12,7 @@
  * Last Modified: 2025-09-26 15:45:37
  */
 
-use aigitcommit::cli::{print_table, Cli};
+use aigitcommit::cli::{Cli, print_table};
 use aigitcommit::git::message::GitMessage;
 use aigitcommit::git::repository::Repository;
 use aigitcommit::openai;
@@ -28,7 +28,26 @@ use std::error::Error;
 use std::fs::File;
 use std::io::Write;
 use std::{env, fs};
-use tracing::{debug, trace, Level};
+use tracing::{Level, debug, trace};
+
+/// The output format for the commit message
+#[derive(Debug)]
+enum OutPutFormat {
+    Stdout,
+    Table,
+    Json,
+}
+
+/// Detect the output format based on the command line arguments
+fn detect_output_format(cli: &Cli) -> OutPutFormat {
+    if cli.json {
+        return OutPutFormat::Json;
+    } else if cli.no_table {
+        return OutPutFormat::Stdout;
+    }
+
+    OutPutFormat::Table
+}
 
 #[tokio::main]
 async fn main() -> std::result::Result<(), Box<dyn Error>> {
@@ -146,16 +165,26 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
 
     let message: GitMessage = GitMessage::new(&repository, title, content, need_signoff)?;
 
-    // Write the commit message to stdout
-    trace!("write to stdout, and finish the process");
-    if cli.print_table {
-        print_table(&message.title, &message.content);
-    } else {
-        writeln!(std::io::stdout(), "{}", message)?;
-    }
+    // Decide the output format based on the command line arguments
+    match detect_output_format(&cli) {
+        OutPutFormat::Stdout => {
+            // Write the commit message to stdout
+            trace!("write to stdout, and finish the process");
+            writeln!(std::io::stdout(), "{}", message)?;
+        }
+        OutPutFormat::Json => {
+            // Print the commit message in JSON format
+            let json = serde_json::to_string_pretty(&message)?;
+            writeln!(std::io::stdout(), "{}", json)?;
+        }
+        OutPutFormat::Table => {
+            // Default print message in table
+            print_table(&message.title, &message.content);
+        }
+    };
 
     // Copy the commit message to clipboard if the --copy option is enabled
-    if cli.copy {
+    if cli.copy_to_clipboard {
         let mut clipboard = Clipboard::new()?;
         clipboard.set_text(format!("{}", &message))?;
         writeln!(

@@ -9,7 +9,7 @@
  * File Created: 2025-10-16 15:07:05
  *
  * Modified By: mingcheng <mingcheng@apache.org>
- * Last Modified: 2025-10-16 22:55:18
+ * Last Modified: 2025-10-17 18:27:34
  */
 
 use git2::{Repository as _Repo, RepositoryOpenFlags, Signature};
@@ -199,13 +199,12 @@ impl Repository {
         let mut result = Vec::new();
         diff.print(git2::DiffFormat::Patch, |delta, _hunk, line| {
             // Check if the file should be excluded
-            if let Some(path) = delta.new_file().path() {
-                if let Some(filename) = path.file_name() {
-                    if excluded_files.contains(&filename.to_string_lossy().as_ref()) {
-                        warn!("skipping excluded file: {}", filename.to_string_lossy());
-                        return true; // Skip this file
-                    }
-                }
+            if let Some(path) = delta.new_file().path()
+                && let Some(filename) = path.file_name()
+                && excluded_files.contains(&filename.to_string_lossy().as_ref())
+            {
+                warn!("skipping excluded file: {}", filename.to_string_lossy());
+                return true; // Skip this file
             }
 
             // Add non-empty lines to result

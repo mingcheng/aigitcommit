@@ -38,6 +38,8 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 arboard = "3.6"
 tabled = "0.20"
+serde_json = "1.0.145"
+serde = { version = "1.0.228", features = ["derive"] }
 
 [[bin]]
 name = "aigitcommit"
