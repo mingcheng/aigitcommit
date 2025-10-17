@@ -29,6 +29,9 @@ use std::fs::File;
 use std::io::Write;
 use std::{env, fs};
 use tracing::{Level, debug, trace};
+mod built_info {
+    include!(concat!(env!("OUT_DIR"), "/built.rs"));
+}
 
 /// The output format for the commit message
 #[derive(Debug)]
@@ -67,6 +70,66 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
         );
     }
 
+    // Get the specified model name from environment variable, default to "gpt-4"
+    let model_name = env::var("OPENAI_MODEL_NAME").unwrap_or_else(|_| String::from("gpt-5"));
+
+    // Instantiate OpenAI client, ready to send requests to the OpenAI API
+    let client = openai::OpenAI::new();
+
+    // Check if the environment variables are set and print the configured values
+    if cli.check_env {
+        fn check_and_print_env(var_name: &str) {
+            match env::var(var_name) {
+                Ok(value) => {
+                    debug!("{} is set to {}", var_name, value);
+                    // Print the value of the environment variable
+                    println!("{:20}\t{}", var_name, value);
+                }
+                Err(_) => {
+                    debug!("{} is not set", var_name);
+                }
+            }
+        }
+
+        trace!("check env option is enabled, will check the OpenAI API key and model name");
+        debug!("the model name is `{}`", &model_name);
+
+        [
+            "OPENAI_API_BASE",
+            "OPENAI_API_TOKEN",
+            "OPENAI_MODEL_NAME",
+            "OPENAI_API_PROXY",
+            "OPENAI_API_TIMEOUT",
+            "OPENAI_API_MAX_TOKENS",
+            "GIT_AUTO_SIGNOFF",
+        ]
+        .iter()
+        .for_each(|v| check_and_print_env(v));
+
+        return Ok(());
+    }
+
+    // Check if the model name is valid
+    if cli.check_model {
+        trace!("check option is enabled, will check the OpenAI API key and model name");
+        debug!("the model name is `{}`", &model_name);
+
+        match client.check_model(&model_name).await {
+            Ok(()) => {
+                println!(
+                    "the model name `{}` is available, {} is ready for use!",
+                    model_name,
+                    built_info::PKG_NAME
+                );
+            }
+            Err(e) => {
+                return Err(format!("the model name `{model_name}` is not available: {e}").into());
+            }
+        }
+
+        return Ok(());
+    }
+
     // Check if the specified path is a valid directory
     let repo_dir = fs::canonicalize(&cli.repo_path)?;
 
@@ -96,29 +159,8 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
         return Err("no commit logs found".into());
     }
 
-    // Instantiate OpenAI client, ready to send requests to the OpenAI API
-    let client = openai::OpenAI::new();
-
     // Generate the prompt which will be sent to OpenAI API
     let content = OpenAI::prompt(&logs, &diffs)?;
-
-    // Get the specified model name from environment variable, default to "gpt-4"
-    let model_name = env::var("OPENAI_MODEL_NAME").unwrap_or_else(|_| String::from("gpt-4"));
-
-    // Check if the model name is valid
-    if cli.check {
-        trace!("check option is enabled, will check the OpenAI API key and model name");
-        debug!("the model name is `{}`", &model_name);
-
-        match client.check_model(&model_name).await {
-            Ok(()) => {
-                debug!("the model name `{}` is available", model_name);
-            }
-            Err(e) => {
-                return Err(format!("the model name `{model_name}` is not available: {e}").into());
-            }
-        }
-    }
 
     // Load the system prompt from the template file
     let system_prompt = include_str!("../templates/system.txt");

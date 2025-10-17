@@ -43,7 +43,7 @@ If not specified, the current directory will be used"#,
         default_value_t = false,
         required = false
     )]
-    pub check: bool,
+    pub check_model: bool,
 
     #[arg(
         long,
