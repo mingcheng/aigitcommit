@@ -5,7 +5,7 @@
 
 ![screenshots](./assets/screenshots.png)
 
-A simple tool to help you write Git semantic commit messages by using AI.
+A simple tool to help you write Git semantic commit messages using AI.
 
 ## References
 
@@ -15,20 +15,19 @@ A simple tool to help you write Git semantic commit messages by using AI.
 
 ## Features
 
-- Generates meaningful commit messages based on your code changes
-- It allows you to commit straight to the repository and integrate with the Git workflow.
-- The created message can be copied to the clipboard.
-- Easy-to-use command-line interface
-- By using the libgit2 library, there is no need to call an external command for security reasons
-- The system supports multiple AI models that are compatible with the OpenAI API
-- Auto sign-off commit messages, if specified environment is set to `true`
-- Socks5 and HTTP proxy supported
+- Generates meaningful, semantic commit messages from staged changes.
+- Commit directly to the repository with the `--commit` flag or copy the generated message with `--copy`.
+- Output formats: human-readable text, JSON (machine-readable) and table view. JSON output is useful for CI integrations and automation; table view makes it easy to scan multiple suggested lines.
+- Easy-to-use command-line interface with sensible defaults and confirm prompts (can be skipped with `--yes`).
+- Uses libgit2 via the `git2` crate, avoiding external git commands for improved security and performance.
+- Supports multiple OpenAI-compatible models and configurable API base, token, and proxy settings.
+- Optional auto sign-off of commits when `GIT_AUTO_SIGNOFF=true`.
+- Proxy support: HTTP and SOCKS5 (set via `OPENAI_API_PROXY`).
+
 
 ## How It Works
 
-AIGitCommit looks at your Git staged changes and uses AI to make commit lines that are clear and helpful.
-
-It looks at the diff result and uses machine learning to figure out what your changes were meant to do and why you made them. It then generates a commit message that is clear and helpful.
+AIGitCommit inspects your staged Git changes, summarizes the intent of those changes, and generates clear semantic commit messages. It examines diffs and uses an AI model to infer intent and produce concise, useful commit lines.
 
 ## Install
 
@@ -48,32 +47,33 @@ Those command will auto-download the latest version of the project and install i
 
 ## Configuration
 
-Initially, you must configure your `OPENAI_*` environment variables to request prompts from an OpenAI-compatible API service. Set them as follows in your shell configuration file:
+Configuration
 
-- `OPENAI_API_TOKEN`: Your individual OpenAI token
-- `OPENAI_API_BASE`: Your specified openAI request base
-- `OPENAI_MODEL_NAME`: Give the model name you wish to request
-- `OPENAI_API_PROXY`: The proxy address if you need to use a proxy
-- `GIT_AUTO_SIGNOFF`: If you want to sign off your commit messages, set this variable to `true`
+Before using AIGitCommit, export the following environment variables (for example in your shell profile):
 
-If your network requirements a proxy to access the API service, you must specify the proxy address using the `OPENAI_API_PROXY` environment variable.
-
-For instance, `http://127.0.0.1:1080` is suitable for an HTTP proxy, while `socks://127.0.0.1:1086` is an appropriate choice for a Socks5 proxy.
+- `OPENAI_API_TOKEN`: Your OpenAI-compatible API token.
+- `OPENAI_API_BASE`: The API base URL (useful for alternative providers or local proxies).
+- `OPENAI_MODEL_NAME`: The model name to query (e.g., a GPT-compatible model).
+- `OPENAI_API_PROXY`: Optional. Proxy address for network access (e.g., `http://127.0.0.1:1080` or `socks://127.0.0.1:1086`).
+- `GIT_AUTO_SIGNOFF`: Optional. Set to `true` to append a Signed-off-by line to commits.
 
 ## Usage
 
-The way to use AIGitComment is really simple. For example, you can run `aigitcoment` in the current directory after staging the file to have git commits generated automatically before git commit. Additionally, you may provide the git directory using `aigitcommit <dir>`.
+Run `aigitcommit` in a repository with staged changes. Optionally provide a path to the git directory: `aigitcommit <dir>`.
 
-1. You can use `--commit` parameters to commit the changes straight to the repository.
-2. Or you may just copy the commit message to the clipboard by using `--copy`.
+Common flags:
 
-If you would like more usage settings, just use `aigitcommit --help` to get more details.
+1. `--commit` commit generated message directly to the repository.
+2. `--copy-to-clipboard` copy the generated message to the clipboard.
+3. `--json` print the suggestions as JSON for CI or automation.
+4. `--yes` skip confirmation prompts and apply the default action.
+5. `--signoff` append a Signed-off-by line to the commit message.
 
-### Docker Image
+See `aigitcommit --help` for the full list of options.
 
-You can also utilise the Docker image without installing the binary executable file.
+### Docker image
 
-Simply enter the subsequent command or reference the `compose.yaml` file.
+AIGitCommit can run in Docker if you prefer not to install the binary locally. Example (read-only repository):
 
 ```bash
 docker run \
@@ -82,11 +82,11 @@ docker run \
   -e OPENAI_API_BASE='<api base>' \
   -e OPENAI_API_TOKEN='<api token>' \
   -e OPENAI_MODEL_NAME='<model name>' \
-  -e OPENAI_API_PROXY='<the proxy address if you need>' \
+  -e OPENAI_API_PROXY='<proxy if needed>' \
   ghcr.io/mingcheng/aigitcommit
 ```
 
-Notice: If you wish to utilise the `--commit` option, you must ensure that the `/repo` directory is writable:
+If you want to use `--commit` from inside the container, mount the repo as writable and run interactively:
 
 ```bash
 docker run \
@@ -96,41 +96,27 @@ docker run \
   -e OPENAI_API_BASE='<api base>' \
   -e OPENAI_API_TOKEN='<api token>' \
   -e OPENAI_MODEL_NAME='<model name>' \
-  -e OPENAI_API_PROXY='<the proxy address if you need>' \
+  -e OPENAI_API_PROXY='<proxy if needed>' \
   ghcr.io/mingcheng/aigitcommit --commit
 ```
 
-Tips: You can add `--yes` options to skip the confirm.
+Use `--yes` to skip interactive confirmations.
 
-### Git Hook
+### Git hook
 
-The `AIGitCommit` also supports git hooks. To integrate the hook, simply copy the `hooks/prepare-commit-msg` file into the repository's `.git/hooks/prepare-commit-msg`, and you're done.
+AIGitCommit ships a `hooks/prepare-commit-msg` hook you can copy into a repository's `.git/hooks/prepare-commit-msg` to automatically generate commit messages during `git commit`.
 
-You can make it global by using Git's `core.hooksPath` instead of setting it up per repository.
+To install globally:
 
-```
-# Create global hooks directory
+```bash
 mkdir -p ~/.git-hooks
-
-# Copy the script contents above into this file
-vim ~/.git-hooks/prepare-commit-msg  # Or use your preferred editor
-
-# Make the script executable
+# copy the file from this project into ~/.git-hooks/prepare-commit-msg
 chmod +x ~/.git-hooks/prepare-commit-msg
-
-# Configure Git to use global hooks
 git config --global core.hooksPath ~/.git-hooks
 ```
 
-Now every repository automatically gets `AIGitCommit` commit messages, just use `git commit` command.
-
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
+After installing the hook, `git commit` will run the hook and populate the commit message. Use `--no-verify` to bypass hooks when necessary.
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-`- eof -`
+This project is licensed under the MIT License. See the `LICENSE` file for details.
