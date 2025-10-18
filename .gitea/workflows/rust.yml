@@ -1,5 +1,5 @@
 #!#
-# Copyright (c) 2025 Hangzhou Guanwaii Technology Co,.Ltd.
+# Copyright (c) 2025 Hangzhou Guanwaii Technology Co., Ltd.
 #
 # This source code is licensed under the MIT License,
 # which is located in the LICENSE file in the source tree's root directory.
@@ -8,8 +8,8 @@
 # Author: mingcheng (mingcheng@apache.org)
 # File Created: 2025-02-24 10:20:48
 #
-# Modified By: mingcheng (mingcheng@apache.org)
-# Last Modified: 2025-03-03 23:42:24
+# Modified By: mingcheng <mingcheng@apache.org>
+# Last Modified: 2025-10-18 08:33:46
 ##
 
 on: [push, pull_request]
@@ -23,6 +23,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          components: rustfmt, clippy
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
       - run: cargo check
 
   test:
@@ -31,6 +43,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          components: rustfmt, clippy
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
       - run: cargo test --all -- --nocapture
 
   fmt:
@@ -39,7 +63,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
-      - run: rustup component add rustfmt
+        with:
+          components: rustfmt, clippy
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
       - run: cargo fmt --all -- --check
 
   clippy:
@@ -48,7 +83,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
-      - run: rustup component add clippy
+        with:
+          components: rustfmt, clippy
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
       - run: cargo clippy -- -D warnings
 
   build:
@@ -57,5 +103,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
-      - run: |
-          cargo build
+        with:
+          components: rustfmt, clippy
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+      - run: cargo build
