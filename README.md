@@ -45,32 +45,6 @@ cargo install aigitcommit
 
 Those command will auto-download the latest version of the project and install it to your cargo bin directory.
 
-## Configuration
-
-Configuration
-
-Before using AIGitCommit, export the following environment variables (for example in your shell profile):
-
-- `OPENAI_API_TOKEN`: Your OpenAI-compatible API token.
-- `OPENAI_API_BASE`: The API base URL (useful for alternative providers or local proxies).
-- `OPENAI_MODEL_NAME`: The model name to query (e.g., a GPT-compatible model).
-- `OPENAI_API_PROXY`: Optional. Proxy address for network access (e.g., `http://127.0.0.1:1080` or `socks://127.0.0.1:1086`).
-- `GIT_AUTO_SIGNOFF`: Optional. Set to `true` to append a Signed-off-by line to commits.
-
-## Usage
-
-Run `aigitcommit` in a repository with staged changes. Optionally provide a path to the git directory: `aigitcommit <dir>`.
-
-Common flags:
-
-1. `--commit` commit generated message directly to the repository.
-2. `--copy-to-clipboard` copy the generated message to the clipboard.
-3. `--json` print the suggestions as JSON for CI or automation.
-4. `--yes` skip confirmation prompts and apply the default action.
-5. `--signoff` append a Signed-off-by line to the commit message.
-
-See `aigitcommit --help` for the full list of options.
-
 ### Docker image
 
 AIGitCommit can run in Docker if you prefer not to install the binary locally. Example (read-only repository):
@@ -116,6 +90,51 @@ git config --global core.hooksPath ~/.git-hooks
 ```
 
 After installing the hook, `git commit` will run the hook and populate the commit message. Use `--no-verify` to bypass hooks when necessary.
+
+## Configuration
+
+Before using AIGitCommit, export the following environment variables (for example in your shell profile):
+
+- `OPENAI_API_TOKEN`: Your OpenAI-compatible API token.
+- `OPENAI_API_BASE`: The API base URL (useful for alternative providers or local proxies).
+- `OPENAI_MODEL_NAME`: The model name to query (e.g., a GPT-compatible model).
+- `OPENAI_API_PROXY`: Optional. Proxy address for network access (e.g., `http://127.0.0.1:1080` or `socks://127.0.0.1:1086`).
+- `GIT_AUTO_SIGNOFF`: Optional. Set to `true` to append a Signed-off-by line to commits.
+
+### Check the configuration
+
+After setting the environment variables, you can check if they are set correctly by running:
+
+```bash
+aigitcommit --check-env
+```
+
+This will print the current configuration and verify that the required variables are set. 
+
+Then you can run 
+
+```bash
+aigitcommit --check-model
+```
+
+to check if the specified model is available and can be queried successfully.
+
+You can also run `aigitcommit --help` to see the available options and usage instructions.
+
+## Usage
+
+Run `aigitcommit` in a repository with staged changes. Optionally provide a path to the git directory: `aigitcommit <dir>`.
+
+Common flags:
+
+1. `--commit` commit generated message directly to the repository.
+2. `--copy-to-clipboard` copy the generated message to the clipboard.
+3. `--json` print the suggestions as JSON for CI or automation.
+4. `--yes` skip confirmation prompts and apply the default action.
+5. `--signoff` append a Signed-off-by line to the commit message.
+
+See `aigitcommit --help` for the full list of options.
+
 
 ## License
 
