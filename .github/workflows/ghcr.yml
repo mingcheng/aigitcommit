@@ -4,9 +4,8 @@ on:
   push:
     branches:
       - main
-      - develop
     tags:
-      - "v*.*.*"  # Semantic versioning tags (v1.0.0, v1.2.3, etc.)
+      - "v*.*.*" # Match version tags like v1.2.3
   pull_request:
     branches:
       - main
@@ -49,27 +48,26 @@ jobs:
       - name: Extract metadata (tags, labels) for Docker
         id: meta
         uses: docker/metadata-action@v5
+        env:
+          DOCKER_METADATA_SHORT_SHA_LENGTH: 7
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            # Tag with branch name for branch pushes
-            type=ref,event=branch
-            # Tag with PR number for pull requests
-            type=ref,event=pr
-            # Tag with git tag for version releases
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            # Tag with short SHA
-            type=sha,format=short
-            # Tag latest only on main branch
+            type=semver,pattern={{version}},enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            # # disabled if major zero
+            # type=semver,pattern={{major}},enable=${{ !startsWith(github.ref, 'refs/tags/v0.') }}
+            type=sha,enable=true,priority=100,prefix=,suffix=,format=short
+            type=schedule,pattern={{date 'YYYYMMDD'}}
             type=raw,value=latest,enable={{is_default_branch}}
           labels: |
             org.opencontainers.image.title=aigitcommit
             org.opencontainers.image.description=AI-powered Git commit message generator
-            org.opencontainers.image.vendor=Hangzhou Guanwaii Technology Co,.Ltd.
+            org.opencontainers.image.url=https://github.com/mingcheng/aigitcommit
+            org.opencontainers.image.vendor=${{ github.actor }} <${{ github.actor }}@users.noreply.github.com>
 
       - name: Build and push Docker image
+        if: steps.meta.outputs.tags != ''
         id: push
         uses: docker/build-push-action@v6
         with:
@@ -85,33 +83,26 @@ jobs:
             VCS_REF=${{ github.sha }}
             VERSION=${{ steps.meta.outputs.version }}
 
-      - name: Generate artifact attestation
-        if: github.event_name != 'pull_request'
-        uses: actions/attest-build-provenance@v2
-        with:
-          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          subject-digest: ${{ steps.push.outputs.digest }}
-          push-to-registry: true
+      # - name: Generate artifact attestation
+      #   if: github.event_name != 'pull_request'
+      #   uses: actions/attest-build-provenance@v3
+      #   with:
+      #     subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+      #     subject-digest: ${{ steps.push.outputs.digest }}
+      #     push-to-registry: false
 
-      - name: Generate SBOM
-        if: github.event_name != 'pull_request'
-        uses: anchore/sbom-action@v0
-        with:
-          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }}
-          format: spdx-json
-          output-file: sbom.spdx.json
+      # - name: Generate SBOM
+      #   if: github.event_name != 'pull_request'
+      #   uses: anchore/sbom-action@v0.20.8
+      #   with:
+      #     image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }}
+      #     format: spdx-json
+      #     output-file: sbom.spdx.json
 
-      - name: Upload SBOM as artifact
-        if: github.event_name != 'pull_request'
-        uses: actions/upload-artifact@v4
-        with:
-          name: sbom-${{ github.sha }}
-          path: sbom.spdx.json
-          retention-days: 90
-
-      - name: Image digest
-        if: github.event_name != 'pull_request'
-        run: |
-          echo "Image pushed successfully!"
-          echo "Digest: ${{ steps.push.outputs.digest }}"
-          echo "Tags: ${{ steps.meta.outputs.tags }}"
+      # - name: Upload SBOM as artifact
+      #   if: github.event_name != 'pull_request'
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: ${{ steps.short-sha.outputs.sha }}-sbom
+      #     path: sbom.spdx.json
+      #     retention-days: 90
