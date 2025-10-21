@@ -112,34 +112,5 @@ If not specified, the current directory will be used"#,
     pub save: String,
 }
 
-pub fn print_table(title: &str, content: &str) {
-    let mut binding =
-        tabled::builder::Builder::from_iter([["Title", title.trim()], ["Content", content.trim()]])
-            .build();
-    let table = binding
-        .with(tabled::settings::Style::rounded())
-        .with(tabled::settings::Width::wrap(120))
-        .with(tabled::settings::Alignment::left());
-
-    println!("{}", table);
-}
-
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_print_table() {
-        const TITLE: &str = r#"feat: bump version to 1.4.0 and update system template 🚀"#;
-        const CONTENT: &str = r#"
-- Update version from 1.3.3 to 1.4.0 in Cargo.toml
-- Enhance system template with additional instructions
-- Simplify and clarify template content for better usability
-- Remove redundant information to streamline template
-- Ensure template aligns with latest commit message standards
-
-Signed-off-by: mingcheng <mingcheng@apache.org>
-        "#;
-        print_table(TITLE, CONTENT);
-    }
-}
+mod tests {}

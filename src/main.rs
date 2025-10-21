@@ -12,7 +12,7 @@
  * Last Modified: 2025-09-26 15:45:37
  */
 
-use aigitcommit::cli::{Cli, print_table};
+use aigitcommit::cli::Cli;
 use aigitcommit::git::message::GitMessage;
 use aigitcommit::git::repository::Repository;
 use aigitcommit::openai;
@@ -29,9 +29,12 @@ use std::fs::File;
 use std::io::Write;
 use std::{env, fs};
 use tracing::{Level, debug, trace};
+
+use crate::utils::print_table;
 mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
 }
+mod utils;
 
 /// The output format for the commit message
 #[derive(Debug)]
