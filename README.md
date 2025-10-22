@@ -1,7 +1,8 @@
 # AIGitCommit
 
-[![Cargo Build & Test](https://github.com/mingcheng/aigitcommit/actions/workflows/rust.yml/badge.svg?branch=main)](https://github.com/mingcheng/aigitcommit/actions/workflows/rust.yml)
+[![Cargo Build & Test](https://github.com/mingcheng/aigitcommit/actions/workflows/cargo.yml/badge.svg?branch=main)](https://github.com/mingcheng/aigitcommit/actions)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/11285/badge)](https://www.bestpractices.dev/projects/11285)
+[![Crates.io](https://img.shields.io/crates/v/aigitcommit.svg)](https://crates.io/crates/aigitcommit)
 
 ![screenshots](./assets/screenshots.png)
 
