@@ -5,7 +5,7 @@ on:
     branches:
       - main
     tags:
-      - "v*.*.*" # Match version tags like v1.2.3
+      - "v*.*.*"
   pull_request:
     branches:
       - main
