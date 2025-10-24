@@ -1,11 +1,11 @@
 [package]
 name = "aigitcommit"
-version = "1.5.5"
+version = "1.6.0"
 edition = "2024"
 description = "A simple git commit message generator by OpenAI compaction model."
 license-file = "LICENSE"
 readme = "README.md"
-keywords = ["git", "openai", "tools", "grok"]
+keywords = ["git", "openai", "tools", "grok", "ai", "development"]
 authors = ["mingcheng <mingcheng@apache.org>"]
 repository = "https://github.com/mingcheng/aigitcommit"
 homepage = "https://github.com/mingcheng/aigitcommit"
