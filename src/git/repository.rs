@@ -9,10 +9,10 @@
  * File Created: 2025-10-16 15:07:05
  *
  * Modified By: mingcheng <mingcheng@apache.org>
- * Last Modified: 2025-10-17 18:27:34
+ * Last Modified: 2025-10-24 16:33:57
  */
 
-use git2::{Repository as _Repo, RepositoryOpenFlags, Signature};
+use git2::{Oid, Repository as _Repo, RepositoryOpenFlags, Signature};
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use tracing::{trace, warn};
@@ -69,7 +69,7 @@ impl Repository {
     /// # Returns
     /// * `Ok(())` - Commit created successfully
     /// * `Err` - Failed to create commit (no staged changes, invalid author info, etc.)
-    pub fn commit(&self, message: &GitMessage) -> Result<(), Box<dyn Error>> {
+    pub fn commit(&self, message: &GitMessage) -> Result<Oid, Box<dyn Error>> {
         let message = message.to_string();
         let mut index = self.repository.index()?;
 
@@ -100,7 +100,7 @@ impl Repository {
 
         // Create the commit with parent references
         let parent_refs: Vec<&git2::Commit> = parents.iter().collect();
-        self.repository.commit(
+        let result = self.repository.commit(
             Some("HEAD"),
             &signature,
             &signature,
@@ -109,8 +109,7 @@ impl Repository {
             &parent_refs,
         )?;
 
-        trace!("commit created successfully");
-        Ok(())
+        Ok(result)
     }
 
     /// Get the author email and name from the repository configuration

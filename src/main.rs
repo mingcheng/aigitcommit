@@ -23,13 +23,13 @@ use async_openai::types::{
     ChatCompletionRequestSystemMessageArgs, ChatCompletionRequestUserMessageArgs,
 };
 use clap::Parser;
-use dialoguer::Confirm;
 use std::error::Error;
 use std::fs::File;
 use std::io::Write;
 use std::{env, fs};
 use tracing::{Level, debug, trace};
 
+use crate::built_info::{PKG_NAME, PKG_VERSION};
 use crate::utils::print_table;
 mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
@@ -188,7 +188,9 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
                 OpenAIError::Reqwest(_) | OpenAIError::StreamError(_) => {
                     "network request error".to_string()
                 }
-                OpenAIError::JSONDeserialize(_err) => "json deserialization error".to_string(),
+                OpenAIError::JSONDeserialize(_error, message) => {
+                    format!("json deserialization error: {message}").to_string()
+                }
                 OpenAIError::InvalidArgument(_) => "invalid argument".to_string(),
                 OpenAIError::FileSaveError(_) | OpenAIError::FileReadError(_) => {
                     "io error".to_string()
@@ -241,22 +243,23 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
     // directly commit the changes to the repository if the --commit option is enabled
     if cli.commit {
         trace!("commit option is enabled, will commit the changes to the repository");
-        let mut confirm = Confirm::new();
-        confirm
-            .with_prompt("do you want to commit the changes with the generated commit message?")
-            .default(false);
+
+        cliclack::intro(format!("{PKG_NAME} v{PKG_VERSION}"))?;
+        let commit = cliclack::confirm("Are you sure to commit with those changes?").interact()?;
 
         // Prompt the user for confirmation if --yes option is not enabled
-        if cli.yes || confirm.interact()? {
+        if cli.yes || commit {
             match repository.commit(&message) {
-                Ok(_) => {
-                    writeln!(std::io::stdout(), "commit successful!")?;
+                Ok(oid) => {
+                    cliclack::note("Commit successful, last commit ID:", oid)?;
                 }
                 Err(e) => {
-                    writeln!(std::io::stderr(), "commit failed: {e}")?;
+                    cliclack::note("Commit failed", e)?;
                 }
             }
         }
+
+        cliclack::outro("Bye~")?;
     }
 
     // If the --save option is enabled, save the commit message to a file
