@@ -244,11 +244,10 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
     if cli.commit {
         trace!("commit option is enabled, will commit the changes to the repository");
 
-        cliclack::intro(format!("{PKG_NAME} v{PKG_VERSION}"))?;
-        let commit = cliclack::confirm("Are you sure to commit with those changes?").interact()?;
-
-        // Prompt the user for confirmation if --yes option is not enabled
-        if cli.yes || commit {
+        if cli.yes || {
+            cliclack::intro(format!("{PKG_NAME} v{PKG_VERSION}"))?;
+            cliclack::confirm("Are you sure to commit with those changes?").interact()?
+        } {
             match repository.commit(&message) {
                 Ok(oid) => {
                     cliclack::note("Commit successful, last commit ID:", oid)?;
