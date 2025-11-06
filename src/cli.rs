@@ -13,9 +13,7 @@
  */
 
 use clap::Parser;
-mod built_info {
-    include!(concat!(env!("OUT_DIR"), "/built.rs"));
-}
+use crate::built_info;
 
 #[derive(Debug, Parser)]
 #[command(name = built_info::PKG_NAME, about = built_info::PKG_DESCRIPTION, version = built_info::PKG_VERSION, author = built_info::PKG_AUTHORS)]

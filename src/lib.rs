@@ -12,6 +12,11 @@
  * Last Modified: 2025-03-03 19:36:07
  */
 
+pub mod built_info {
+    include!(concat!(env!("OUT_DIR"), "/built.rs"));
+}
+
 pub mod cli;
 pub mod git;
 pub mod openai;
+pub mod utils;

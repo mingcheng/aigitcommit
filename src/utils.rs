@@ -9,8 +9,83 @@
  * File Created: 2025-10-21 11:34:11
  *
  * Modified By: mingcheng <mingcheng@apache.org>
- * Last Modified: 2025-10-21 17:52:45
+ * Last Modified: 2025-11-06 12:24:04
  */
+
+use std::env;
+use std::io::Write;
+use tracing::debug;
+
+use crate::git::message::GitMessage;
+
+/// Get environment variable with default value fallback
+pub fn get_env(key: &str, default: &str) -> String {
+    env::var(key).unwrap_or_else(|_| default.to_string())
+}
+
+/// Parse boolean environment variable
+/// Accepts "1", "true", "yes", "on" (case-insensitive) as true
+pub fn get_env_bool(key: &str) -> bool {
+    env::var(key)
+        .map(|v| {
+            v == "1"
+                || v.eq_ignore_ascii_case("true")
+                || v.eq_ignore_ascii_case("yes")
+                || v.eq_ignore_ascii_case("on")
+        })
+        .unwrap_or(false)
+}
+
+/// Check if commit should be signed off
+/// Returns true if either CLI flag is set or GIT_AUTO_SIGNOFF environment variable is true
+pub fn should_signoff(cli_signoff: bool) -> bool {
+    let result = cli_signoff || get_env_bool("GIT_AUTO_SIGNOFF");
+    log::trace!(
+        "should_signoff: cli_signoff={}, GIT_AUTO_SIGNOFF={}, result={}",
+        cli_signoff,
+        get_env_bool("GIT_AUTO_SIGNOFF"),
+        result
+    );
+    result
+}
+
+/// Output format for commit messages
+#[derive(Debug)]
+pub enum OutputFormat {
+    Stdout,
+    Table,
+    Json,
+}
+
+impl OutputFormat {
+    /// Detect output format from CLI flags
+    pub fn detect(json: bool, no_table: bool) -> Self {
+        if json {
+            Self::Json
+        } else if no_table {
+            Self::Stdout
+        } else {
+            Self::Table
+        }
+    }
+
+    /// Write the message in the specified format
+    pub fn write(&self, message: &GitMessage) -> Result<(), Box<dyn std::error::Error>> {
+        match self {
+            Self::Stdout => {
+                writeln!(std::io::stdout(), "{}", message)?;
+            }
+            Self::Json => {
+                let json = serde_json::to_string_pretty(message)?;
+                writeln!(std::io::stdout(), "{}", json)?;
+            }
+            Self::Table => {
+                print_table(&message.title, &message.content);
+            }
+        }
+        Ok(())
+    }
+}
 
 /// Print the commit message in a table format
 pub fn print_table(title: &str, content: &str) {
@@ -23,6 +98,62 @@ pub fn print_table(title: &str, content: &str) {
         .with(tabled::settings::Alignment::left());
 
     println!("{}", table);
+}
+
+/// Check and print environment variable value
+fn check_and_print_env(var_name: &str) {
+    match env::var(var_name) {
+        Ok(value) => {
+            debug!("{} is set to {}", var_name, value);
+            println!("{:20}\t{}", var_name, value);
+        }
+        Err(_) => {
+            debug!("{} is not set", var_name);
+        }
+    }
+}
+
+/// Check and print all relevant environment variables
+pub fn check_env_variables() {
+    [
+        "OPENAI_API_BASE",
+        "OPENAI_API_TOKEN",
+        "OPENAI_MODEL_NAME",
+        "OPENAI_API_PROXY",
+        "OPENAI_API_TIMEOUT",
+        "OPENAI_API_MAX_TOKENS",
+        "GIT_AUTO_SIGNOFF",
+    ]
+    .iter()
+    .for_each(|v| check_and_print_env(v));
+}
+
+/// Convert OpenAI error to user-friendly error message
+pub fn format_openai_error(error: async_openai::error::OpenAIError) -> String {
+    use async_openai::error::OpenAIError;
+
+    match error {
+        OpenAIError::Reqwest(_) | OpenAIError::StreamError(_) => {
+            "network request error".to_string()
+        }
+        OpenAIError::JSONDeserialize(_error, message) => {
+            format!("json deserialization error: {message}")
+        }
+        OpenAIError::InvalidArgument(_) => "invalid argument".to_string(),
+        OpenAIError::FileSaveError(_) | OpenAIError::FileReadError(_) => "io error".to_string(),
+        OpenAIError::ApiError(e) => format!("api error {e:?}"),
+    }
+}
+
+/// Save content to a file
+pub fn save_to_file(path: &str, content: &str) -> Result<(), Box<dyn std::error::Error>> {
+    use std::fs::File;
+    use std::io::Write;
+
+    let mut file = File::create(path)?;
+    file.write_all(content.as_bytes())?;
+    file.flush()?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -50,5 +181,39 @@ mod tests {
 Signed-off-by: mingcheng <mingcheng@apache.org>
         "#;
         print_table(TITLE, CONTENT);
+    }
+
+    #[test]
+    fn test_get_env() {
+        let result = get_env("NONEXISTENT_VAR_XYZ", "default_value");
+        assert_eq!(result, "default_value");
+    }
+
+    #[test]
+    fn test_should_signoff() {
+        // Test with CLI flag true
+        assert!(should_signoff(true));
+
+        // Test with CLI flag false and no env var
+        unsafe {
+            std::env::remove_var("GIT_AUTO_SIGNOFF");
+        }
+        assert!(!should_signoff(false));
+
+        // Test with CLI flag false but env var true
+        unsafe {
+            std::env::set_var("GIT_AUTO_SIGNOFF", "1");
+        }
+        assert!(should_signoff(false));
+
+        unsafe {
+            std::env::set_var("GIT_AUTO_SIGNOFF", "true");
+        }
+        assert!(should_signoff(false));
+
+        // Clean up
+        unsafe {
+            std::env::remove_var("GIT_AUTO_SIGNOFF");
+        }
     }
 }

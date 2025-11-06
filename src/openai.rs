@@ -12,11 +12,8 @@
  * Last Modified: 2025-09-26 15:51:48
  */
 
-// Include the generated-file as a separate module
-mod built_info {
-    include!(concat!(env!("OUT_DIR"), "/built.rs"));
-}
-
+use crate::built_info;
+use crate::utils::get_env;
 use askama::Template;
 use async_openai::config::OPENAI_API_BASE;
 use async_openai::error::OpenAIError;
@@ -28,7 +25,6 @@ use async_openai::{
 use log::trace;
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{ClientBuilder, Proxy};
-use std::env;
 use std::error::Error;
 use std::time::Duration;
 use tracing::debug;
@@ -55,10 +51,8 @@ impl OpenAI {
     pub fn new() -> Self {
         // Set up OpenAI client configuration
         let ai_config = OpenAIConfig::new()
-            .with_api_key(env::var("OPENAI_API_TOKEN").unwrap_or_else(|_| String::from("")))
-            .with_api_base(
-                env::var("OPENAI_API_BASE").unwrap_or_else(|_| String::from(OPENAI_API_BASE)),
-            )
+            .with_api_key(get_env("OPENAI_API_TOKEN", ""))
+            .with_api_base(get_env("OPENAI_API_BASE", OPENAI_API_BASE))
             .with_org_id(built_info::PKG_NAME);
 
         // Set up HTTP client builder with default headers
@@ -80,14 +74,14 @@ impl OpenAI {
             });
 
         // Set up proxy if specified
-        let proxy_addr: String = env::var("OPENAI_API_PROXY").unwrap_or_else(|_| String::from(""));
+        let proxy_addr = get_env("OPENAI_API_PROXY", "");
         if !proxy_addr.is_empty() {
             trace!("Using proxy: {proxy_addr}");
             http_client_builder = http_client_builder.proxy(Proxy::all(proxy_addr).unwrap());
         }
 
-        let request_timeout =
-            env::var("OPENAI_REQUEST_TIMEOUT").unwrap_or_else(|_| String::from(""));
+        // Set up request timeout if specified
+        let request_timeout = get_env("OPENAI_REQUEST_TIMEOUT", "");
         if !request_timeout.is_empty()
             && let Ok(timeout) = request_timeout.parse::<u64>()
         {
