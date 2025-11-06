@@ -9,15 +9,17 @@
  * File Created: 2025-10-16 15:07:05
  *
  * Modified By: mingcheng <mingcheng@apache.org>
- * Last Modified: 2025-10-24 16:33:57
+ * Last Modified: 2025-11-07 11:09:51
  */
 
 use git2::{Oid, Repository as _Repo, RepositoryOpenFlags, Signature};
+use regex::Regex;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use tracing::{trace, warn};
 
 use crate::git::message::GitMessage;
+use crate::utils::{self, get_env};
 
 /// Author information from git configuration
 pub struct Author {
@@ -123,6 +125,10 @@ impl Repository {
     pub fn get_author(&self) -> Result<Author, Box<dyn Error>> {
         let config = self.repository.config()?;
 
+        // Default email if none found
+        const UNKNOWN_EMAIL: &str = "unknown@users.noreply.github.com";
+        const UNKNOWN_AUTHOR: &str = "Unknown Author";
+
         // Try to get user.email from config, fall back to environment or default
         let email = config
             .get_string("user.email")
@@ -131,9 +137,20 @@ impl Repository {
                 std::env::var("GIT_AUTHOR_EMAIL")
             })
             .unwrap_or_else(|_| {
-                warn!("using default email: unknown@example.com");
-                "unknown@example.com".to_string()
+                warn!("using default email: {}", UNKNOWN_EMAIL);
+                get_env("GIT_FALLBACK_EMAIL", UNKNOWN_EMAIL)
             });
+
+        // Validate email format using regex
+        let email = if Regex::new(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+            .unwrap()
+            .is_match(&email)
+        {
+            email
+        } else {
+            warn!("invalid email format: {}, using default", UNKNOWN_EMAIL);
+            get_env("GIT_FALLBACK_EMAIL", UNKNOWN_EMAIL)
+        };
 
         // Try to get user.name from config, fall back to environment or default
         let name = config
@@ -146,6 +163,14 @@ impl Repository {
                 warn!("using default name: Unknown User");
                 "Unknown User".to_string()
             });
+
+        // Detect if name is empty or whitespace
+        let name = if name.trim().is_empty() {
+            warn!("author name is empty, using default: Unknown Author");
+            get_env("GIT_FALLBACK_NAME", UNKNOWN_AUTHOR)
+        } else {
+            name
+        };
 
         Ok(Author { name, email })
     }
@@ -215,6 +240,24 @@ impl Repository {
         })?;
 
         Ok(result)
+    }
+
+    /// Check if commit should be signed off
+    /// Returns true when git config `aigitcommit.signoff` is enabled or the
+    /// `AIGITCOMMIT_SIGNOFF` environment variable evaluates to true
+    pub fn should_signoff(&self) -> bool {
+        // Define the config key for signoff
+        const SIGNOFF_KEY: &str = "aigitcommit.signoff";
+
+        // Check git config first
+        if let Ok(config) = self.repository.config() {
+            let signoff = config.get_bool(SIGNOFF_KEY).unwrap_or(false);
+            trace!("✍️ git config signoff: {}", signoff);
+            return signoff;
+        }
+
+        // Fall back to environment variable
+        utils::get_env_bool("AIGITCOMMIT_SIGNOFF")
     }
 
     /// Get the list of filenames to exclude from diffs

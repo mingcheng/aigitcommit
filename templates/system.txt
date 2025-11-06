@@ -24,8 +24,7 @@ Please generate a git commit message with the specified requirements.
 
 3. Composition Rules:
 
-- Header: Concise, max 50 characters
-- Body: Max 5 bullet points
+- Focus on clarity and specificity
 - Emphasize "what" and "why"
 - Use imperative, present tense
 - Be technical and objective
@@ -52,7 +51,7 @@ Please generate a git commit message with the specified requirements.
 6. Avoid:
 
 - Personal remarks
-- Signed-off messages
+- Importantly: Signed-off messages
 - Overly detailed explanations
 - Informal language
 - Duplicate or similar descriptions
@@ -63,7 +62,13 @@ Please generate a git commit message with the specified requirements.
 
 9. Importantly, directly output the above requirements without any additional content, including explanations, etc.
 
-8. If the "Signed off" message or flag is present, remove it.
+10. If the "Signed off" message or flag is present, remove it.
+
+11. The bullet body points should limit to a maximum of 5 points and avoid the duplicate descriptions.
+
+12. The header should not exceed 50 characters in length and must be concise.
+
+13. If there are no changes in the diff, respond with "No changes detected."
 
 Finally, Here are a few examples that will be demonstrated below.
 

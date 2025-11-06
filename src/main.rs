@@ -1,15 +1,15 @@
-/*
- * Copyright (c) 2025 Hangzhou Guanwaii Technology Co,.Ltd.
+/*!
+ * Copyright (c) 2025 Hangzhou Guanwaii Technology Co., Ltd.
  *
  * This source code is licensed under the MIT License,
  * which is located in the LICENSE file in the source tree's root directory.
  *
  * File: main.rs
- * Author: mingcheng (mingcheng@apache.org)
+ * Author: mingcheng <mingcheng@apache.org>
  * File Created: 2025-03-01 17:17:30
  *
- * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-09-26 15:45:37
+ * Modified By: mingcheng <mingcheng@apache.org>
+ * Last Modified: 2025-11-07 11:37:33
  */
 
 use aigitcommit::built_info::{PKG_NAME, PKG_VERSION};
@@ -26,7 +26,7 @@ use clap::Parser;
 use std::error::Error;
 use std::fs;
 use std::io::Write;
-use tracing::{Level, debug, trace};
+use tracing::{Level, debug, error, info, trace};
 
 use aigitcommit::utils::{
     OutputFormat, check_env_variables, format_openai_error, get_env, save_to_file, should_signoff,
@@ -143,7 +143,7 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
         .ok_or("Invalid response format: expected title and content separated by double newline")?;
 
     // Detect auto signoff from environment variable or CLI flag
-    let need_signoff = should_signoff(cli.signoff);
+    let need_signoff = should_signoff(&repository, cli.signoff);
 
     let message: GitMessage = GitMessage::new(&repository, title, content, need_signoff)?;
 
@@ -163,11 +163,11 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
 
     // directly commit the changes to the repository if the --commit option is enabled
     if cli.commit {
-        trace!("commit option is enabled, will commit the changes to the repository");
+        trace!("commit option is enabled, will commit the changes directly to the repository");
 
         if cli.yes || {
             cliclack::intro(format!("{PKG_NAME} v{PKG_VERSION}"))?;
-            cliclack::confirm("Are you sure to commit with those changes?").interact()?
+            cliclack::confirm("Are you sure to commit with generated message below?").interact()?
         } {
             match repository.commit(&message) {
                 Ok(oid) => {
@@ -185,10 +185,16 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
     // If the --save option is enabled, save the commit message to a file
     if !cli.save.is_empty() {
         trace!("save option is enabled, will save the commit message to a file");
-        debug!("the save file path is {:?}", &cli.save);
 
-        save_to_file(&cli.save, &result)?;
-        writeln!(std::io::stdout(), "commit message saved to {}", cli.save)?;
+        // Save the commit message to the specified file
+        match save_to_file(&cli.save, &message) {
+            Ok(f) => {
+                info!("commit message saved to file: {:?}", f);
+            }
+            Err(e) => {
+                error!("failed to save commit message to file: {}", e);
+            }
+        }
     }
 
     Ok(())

@@ -6,7 +6,7 @@
 
 ![screenshots](./assets/screenshots.png)
 
-`AIGitCommit` is a command-line tool that generates meaningful, semantic commit messages from your staged Git changes using AI. 
+`AIGitCommit` is a command-line tool that generates meaningful, semantic commit messages from your staged Git changes using AI.
 
 It inspects your diffs, summarizes the intent of your changes, and produces clear, concise commit messages that follow the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) specification.
 
@@ -26,7 +26,7 @@ It inspects your diffs, summarizes the intent of your changes, and produces clea
 - Easy-to-use command-line interface with sensible defaults and confirm prompts (can be skipped with `--yes`).
 - Uses libgit2 via the `git2` crate, avoiding external git commands for improved security and performance.
 - Supports multiple OpenAI-compatible models and configurable API base, token, and proxy settings.
-- Optional auto sign-off of commits when `GIT_AUTO_SIGNOFF=true`.
+- Optional auto sign-off of commits when `AIGITCOMMIT_SIGNOFF=true` or `git config --bool aigitcommit.signoff true`.
 - Proxy support: HTTP and SOCKS5 (set via `OPENAI_API_PROXY`).
 
 
@@ -83,18 +83,42 @@ Use `--yes` to skip interactive confirmations.
 
 ### Git hook
 
-AIGitCommit ships a `hooks/prepare-commit-msg` hook you can copy into a repository's `.git/hooks/prepare-commit-msg` to automatically generate commit messages during `git commit`.
+AIGitCommit ships a `hooks/prepare-commit-msg` hook that pauses your commit workflow, looks at the staged diff, and pre-populates `COMMIT_EDITMSG` with an AI-generated summary. This lets you fine-tune the final message instead of writing it from scratch.
 
-To install globally:
+**Prerequisites**
+- `aigitcommit` must be installed and discoverable on your `PATH`.
+- Required environment variables (`OPENAI_API_TOKEN`, `OPENAI_API_BASE`, etc.) should be configured in your shell before running `git commit`.
+
+**Project-level installation**
+
+Install the hook in the current repository only:
+
+```bash
+cp hooks/prepare-commit-msg .git/hooks/prepare-commit-msg
+chmod +x .git/hooks/prepare-commit-msg
+```
+
+After copying, stage some changes and run `git commit`. The hook prints progress messages, writes the suggested commit text, and drops you into your editor so you can adjust the result. To verify the hook without creating a new commit, try `git commit --amend` against a throwaway repository.
+
+If you need to disable the hook for a single commit, use `git commit --no-verify`.
+
+**Global installation**
+
+Install once and reuse across repositories:
 
 ```bash
 mkdir -p ~/.git-hooks
-# copy the file from this project into ~/.git-hooks/prepare-commit-msg
+cp hooks/prepare-commit-msg ~/.git-hooks/prepare-commit-msg
 chmod +x ~/.git-hooks/prepare-commit-msg
 git config --global core.hooksPath ~/.git-hooks
 ```
 
-After installing the hook, `git commit` will run the hook and populate the commit message. Use `--no-verify` to bypass hooks when necessary.
+This approach lets every repository automatically pick up the hook as long as `core.hooksPath` remains set.
+
+**Troubleshooting**
+- If the hook exits early with a warning about missing staged changes, make sure you have run `git add`.
+- A message about missing configuration usually means the OpenAI-related environment variables are not exported in your shell session.
+- Hook output is written to stderr; if you prefer a quieter experience, redirect or silence stderr in your Git configuration.
 
 ## Configuration
 
@@ -104,7 +128,16 @@ Before using AIGitCommit, export the following environment variables (for exampl
 - `OPENAI_API_BASE`: The API base URL (useful for alternative providers or local proxies).
 - `OPENAI_MODEL_NAME`: The model name to query (e.g., a GPT-compatible model).
 - `OPENAI_API_PROXY`: Optional. Proxy address for network access (e.g., `http://127.0.0.1:1080` or `socks://127.0.0.1:1086`).
-- `GIT_AUTO_SIGNOFF`: Optional. Set to `true` to append a Signed-off-by line to commits.
+- `AIGITCOMMIT_SIGNOFF`: Optional. Set to `true` (or any truthy value) to append a Signed-off-by line to commits.
+
+You can also enable sign-off via Git configuration:
+
+```bash
+git config aigitcommit.signoff true       # repository only
+git config --global aigitcommit.signoff true
+```
+
+The Git configuration takes precedence over the environment variable.
 
 ### Check the configuration
 
@@ -114,9 +147,9 @@ After setting the environment variables, you can check if they are set correctly
 aigitcommit --check-env
 ```
 
-This will print the current configuration and verify that the required variables are set. 
+This will print the current configuration and verify that the required variables are set.
 
-Then you can run 
+Then you can run
 
 ```bash
 aigitcommit --check-model

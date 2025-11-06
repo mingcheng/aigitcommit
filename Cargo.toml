@@ -36,6 +36,7 @@ tracing-subscriber = "0.3"
 arboard = "3.6"
 tabled = "0.20"
 cliclack = "0.3.6"
+regex = "1.12.2"
 
 [[bin]]
 name = "aigitcommit"

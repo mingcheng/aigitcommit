@@ -12,8 +12,8 @@
  * Last Modified: 2025-03-05 00:25:24
  */
 
-use clap::Parser;
 use crate::built_info;
+use clap::Parser;
 
 #[derive(Debug, Parser)]
 #[command(name = built_info::PKG_NAME, about = built_info::PKG_DESCRIPTION, version = built_info::PKG_VERSION, author = built_info::PKG_AUTHORS)]

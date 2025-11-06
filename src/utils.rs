@@ -9,7 +9,7 @@
  * File Created: 2025-10-21 11:34:11
  *
  * Modified By: mingcheng <mingcheng@apache.org>
- * Last Modified: 2025-11-06 12:24:04
+ * Last Modified: 2025-11-07 11:22:27
  */
 
 use std::env;
@@ -17,6 +17,7 @@ use std::io::Write;
 use tracing::debug;
 
 use crate::git::message::GitMessage;
+use crate::git::repository::Repository;
 
 /// Get environment variable with default value fallback
 pub fn get_env(key: &str, default: &str) -> String {
@@ -37,16 +38,9 @@ pub fn get_env_bool(key: &str) -> bool {
 }
 
 /// Check if commit should be signed off
-/// Returns true if either CLI flag is set or GIT_AUTO_SIGNOFF environment variable is true
-pub fn should_signoff(cli_signoff: bool) -> bool {
-    let result = cli_signoff || get_env_bool("GIT_AUTO_SIGNOFF");
-    log::trace!(
-        "should_signoff: cli_signoff={}, GIT_AUTO_SIGNOFF={}, result={}",
-        cli_signoff,
-        get_env_bool("GIT_AUTO_SIGNOFF"),
-        result
-    );
-    result
+/// Returns true if either CLI flag is set or repository/git config/env enable sign-off
+pub fn should_signoff(repository: &Repository, cli_signoff: bool) -> bool {
+    cli_signoff || repository.should_signoff()
 }
 
 /// Output format for commit messages
@@ -122,7 +116,7 @@ pub fn check_env_variables() {
         "OPENAI_API_PROXY",
         "OPENAI_API_TIMEOUT",
         "OPENAI_API_MAX_TOKENS",
-        "GIT_AUTO_SIGNOFF",
+        "AIGITCOMMIT_SIGNOFF",
     ]
     .iter()
     .for_each(|v| check_and_print_env(v));
@@ -146,12 +140,15 @@ pub fn format_openai_error(error: async_openai::error::OpenAIError) -> String {
 }
 
 /// Save content to a file
-pub fn save_to_file(path: &str, content: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub fn save_to_file(
+    path: &str,
+    content: &dyn std::fmt::Display,
+) -> Result<(), Box<dyn std::error::Error>> {
     use std::fs::File;
     use std::io::Write;
 
     let mut file = File::create(path)?;
-    file.write_all(content.as_bytes())?;
+    file.write_all(content.to_string().as_bytes())?;
     file.flush()?;
     Ok(())
 }
@@ -187,33 +184,5 @@ Signed-off-by: mingcheng <mingcheng@apache.org>
     fn test_get_env() {
         let result = get_env("NONEXISTENT_VAR_XYZ", "default_value");
         assert_eq!(result, "default_value");
-    }
-
-    #[test]
-    fn test_should_signoff() {
-        // Test with CLI flag true
-        assert!(should_signoff(true));
-
-        // Test with CLI flag false and no env var
-        unsafe {
-            std::env::remove_var("GIT_AUTO_SIGNOFF");
-        }
-        assert!(!should_signoff(false));
-
-        // Test with CLI flag false but env var true
-        unsafe {
-            std::env::set_var("GIT_AUTO_SIGNOFF", "1");
-        }
-        assert!(should_signoff(false));
-
-        unsafe {
-            std::env::set_var("GIT_AUTO_SIGNOFF", "true");
-        }
-        assert!(should_signoff(false));
-
-        // Clean up
-        unsafe {
-            std::env::remove_var("GIT_AUTO_SIGNOFF");
-        }
     }
 }
