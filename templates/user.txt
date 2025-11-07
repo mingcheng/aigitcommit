@@ -1,15 +1,12 @@
-The latest commit history from the repository is shown below, including the recent git commit messages:
-
+### Recent Commit History
 ```
 {{logs}}
 ```
 
-Please note that some commits may not relevantly affect the current code, as they might pertain to other changes.
-
-Additionally, a variety of content is provided below:
-
+### Staged Changes
 ```
 {{diffs}}
 ```
 
-Note that the main changes are in the diffs content above, while the commit history is provided for context.
+### Instructions
+Generate a commit message based on the staged changes above. Use the commit history only as a stylistic reference when relevant.
