@@ -9,7 +9,7 @@
  * File Created: 2025-03-01 17:17:30
  *
  * Modified By: mingcheng <mingcheng@apache.org>
- * Last Modified: 2025-11-07 11:37:33
+ * Last Modified: 2025-11-07 14:29:29
  */
 
 use aigitcommit::built_info::{PKG_NAME, PKG_VERSION};
@@ -29,7 +29,7 @@ use std::io::Write;
 use tracing::{Level, debug, error, info, trace};
 
 use aigitcommit::utils::{
-    OutputFormat, check_env_variables, format_openai_error, get_env, save_to_file, should_signoff,
+    OutputFormat, check_env_variables, env, format_openai_error, save_to_file, should_signoff,
 };
 
 #[tokio::main]
@@ -51,7 +51,7 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
     }
 
     // Get the specified model name from environment variable, default to "gpt-5"
-    let model_name = get_env("OPENAI_MODEL_NAME", "gpt-5");
+    let model_name = env::get("OPENAI_MODEL_NAME", "gpt-5");
 
     // Instantiate OpenAI client, ready to send requests to the OpenAI API
     let client = openai::OpenAI::new();
