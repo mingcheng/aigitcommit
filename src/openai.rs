@@ -13,7 +13,7 @@
  */
 
 use crate::built_info;
-use crate::utils::get_env;
+use crate::utils::env;
 use askama::Template;
 use async_openai::config::OPENAI_API_BASE;
 use async_openai::error::OpenAIError;
@@ -50,9 +50,9 @@ impl OpenAI {
     /// This function sets up the OpenAI client with the API key, base URL, and optional proxy settings.
     pub fn new() -> Self {
         // Set up OpenAI client configuration
-        let ai_config = OpenAIConfig::new()
-            .with_api_key(get_env("OPENAI_API_TOKEN", ""))
-            .with_api_base(get_env("OPENAI_API_BASE", OPENAI_API_BASE))
+        let ai_config: OpenAIConfig = OpenAIConfig::new()
+            .with_api_key(env::get("OPENAI_API_TOKEN", ""))
+            .with_api_base(env::get("OPENAI_API_BASE", OPENAI_API_BASE))
             .with_org_id(built_info::PKG_NAME);
 
         // Set up HTTP client builder with default headers
@@ -74,14 +74,14 @@ impl OpenAI {
             });
 
         // Set up proxy if specified
-        let proxy_addr = get_env("OPENAI_API_PROXY", "");
+        let proxy_addr = env::get("OPENAI_API_PROXY", "");
         if !proxy_addr.is_empty() {
             trace!("Using proxy: {proxy_addr}");
             http_client_builder = http_client_builder.proxy(Proxy::all(proxy_addr).unwrap());
         }
 
         // Set up request timeout if specified
-        let request_timeout = get_env("OPENAI_REQUEST_TIMEOUT", "");
+        let request_timeout = env::get("OPENAI_REQUEST_TIMEOUT", "");
         if !request_timeout.is_empty()
             && let Ok(timeout) = request_timeout.parse::<u64>()
         {

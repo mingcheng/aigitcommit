@@ -9,7 +9,7 @@
  * File Created: 2025-10-16 15:07:05
  *
  * Modified By: mingcheng <mingcheng@apache.org>
- * Last Modified: 2025-11-07 11:09:51
+ * Last Modified: 2025-11-07 14:28:13
  */
 
 use git2::{Oid, Repository as _Repo, RepositoryOpenFlags, Signature};
@@ -19,7 +19,7 @@ use std::fmt::{Display, Formatter};
 use tracing::{trace, warn};
 
 use crate::git::message::GitMessage;
-use crate::utils::{self, get_env};
+use crate::utils::env;
 
 /// Author information from git configuration
 pub struct Author {
@@ -138,7 +138,7 @@ impl Repository {
             })
             .unwrap_or_else(|_| {
                 warn!("using default email: {}", UNKNOWN_EMAIL);
-                get_env("GIT_FALLBACK_EMAIL", UNKNOWN_EMAIL)
+                env::get("GIT_FALLBACK_EMAIL", UNKNOWN_EMAIL)
             });
 
         // Validate email format using regex
@@ -149,7 +149,7 @@ impl Repository {
             email
         } else {
             warn!("invalid email format: {}, using default", UNKNOWN_EMAIL);
-            get_env("GIT_FALLBACK_EMAIL", UNKNOWN_EMAIL)
+            env::get("GIT_FALLBACK_EMAIL", UNKNOWN_EMAIL)
         };
 
         // Try to get user.name from config, fall back to environment or default
@@ -167,7 +167,7 @@ impl Repository {
         // Detect if name is empty or whitespace
         let name = if name.trim().is_empty() {
             warn!("author name is empty, using default: Unknown Author");
-            get_env("GIT_FALLBACK_NAME", UNKNOWN_AUTHOR)
+            env::get("GIT_FALLBACK_NAME", UNKNOWN_AUTHOR)
         } else {
             name
         };
@@ -257,7 +257,7 @@ impl Repository {
         }
 
         // Fall back to environment variable
-        utils::get_env_bool("AIGITCOMMIT_SIGNOFF")
+        env::get_bool("AIGITCOMMIT_SIGNOFF")
     }
 
     /// Get the list of filenames to exclude from diffs

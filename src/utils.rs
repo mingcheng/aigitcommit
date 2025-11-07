@@ -9,32 +9,51 @@
  * File Created: 2025-10-21 11:34:11
  *
  * Modified By: mingcheng <mingcheng@apache.org>
- * Last Modified: 2025-11-07 11:22:27
+ * Last Modified: 2025-11-07 14:31:43
  */
-
-use std::env;
-use std::io::Write;
-use tracing::debug;
 
 use crate::git::message::GitMessage;
 use crate::git::repository::Repository;
+use std::io::Write;
 
-/// Get environment variable with default value fallback
-pub fn get_env(key: &str, default: &str) -> String {
-    env::var(key).unwrap_or_else(|_| default.to_string())
-}
+// Get environment variable with default value fallback
+pub mod env {
+    use std::env;
 
-/// Parse boolean environment variable
-/// Accepts "1", "true", "yes", "on" (case-insensitive) as true
-pub fn get_env_bool(key: &str) -> bool {
-    env::var(key)
-        .map(|v| {
-            v == "1"
-                || v.eq_ignore_ascii_case("true")
-                || v.eq_ignore_ascii_case("yes")
-                || v.eq_ignore_ascii_case("on")
-        })
-        .unwrap_or(false)
+    use tracing::{debug, warn};
+
+    /// Get environment variable with default value fallback
+    pub fn get(key: &str, default: &str) -> String {
+        env::var(key).unwrap_or_else(|_| default.to_string())
+    }
+
+    /// Parse boolean environment variable
+    /// Accepts "1", "true", "yes", "on" (case-insensitive) as true
+    pub fn get_bool(key: &str) -> bool {
+        env::var(key)
+            .map(|v| {
+                v == "1"
+                    || v.eq_ignore_ascii_case("true")
+                    || v.eq_ignore_ascii_case("yes")
+                    || v.eq_ignore_ascii_case("on")
+            })
+            .unwrap_or(false)
+    }
+
+    /// Check and print environment variable value
+    pub fn exists(var_name: &str) -> bool {
+        match env::var(var_name) {
+            Ok(value) => {
+                debug!("{} is set to {}", var_name, value);
+                // println!("{:20}\t{}", var_name, value);
+                true
+            }
+            Err(_) => {
+                warn!("{} is not set", var_name);
+                false
+            }
+        }
+    }
 }
 
 /// Check if commit should be signed off
@@ -49,6 +68,7 @@ pub enum OutputFormat {
     Stdout,
     Table,
     Json,
+    // File
 }
 
 impl OutputFormat {
@@ -94,19 +114,6 @@ pub fn print_table(title: &str, content: &str) {
     println!("{}", table);
 }
 
-/// Check and print environment variable value
-fn check_and_print_env(var_name: &str) {
-    match env::var(var_name) {
-        Ok(value) => {
-            debug!("{} is set to {}", var_name, value);
-            println!("{:20}\t{}", var_name, value);
-        }
-        Err(_) => {
-            debug!("{} is not set", var_name);
-        }
-    }
-}
-
 /// Check and print all relevant environment variables
 pub fn check_env_variables() {
     [
@@ -119,7 +126,9 @@ pub fn check_env_variables() {
         "AIGITCOMMIT_SIGNOFF",
     ]
     .iter()
-    .for_each(|v| check_and_print_env(v));
+    .for_each(|v| {
+        env::exists(v);
+    });
 }
 
 /// Convert OpenAI error to user-friendly error message
@@ -182,7 +191,7 @@ Signed-off-by: mingcheng <mingcheng@apache.org>
 
     #[test]
     fn test_get_env() {
-        let result = get_env("NONEXISTENT_VAR_XYZ", "default_value");
+        let result = env::get("NONEXISTENT_VAR_XYZ", "default_value");
         assert_eq!(result, "default_value");
     }
 }
