@@ -21,14 +21,21 @@ if ! type aigitcommit >/dev/null 2>&1; then
     exit 0
 fi
 
-# Only run for interactive commits without a pre-populated message
+# Only run for interactive commits or explicit empty messages
+RUN_EDITOR=0
 if [ -n "$COMMIT_MSG_TYPE" ]; then
-    exit 0
-fi
+    if [ "$COMMIT_MSG_TYPE" != "message" ]; then
+        exit 0
+    fi
 
-# Skip if the commit message already contains non-comment content
-if grep -Eq '^[[:space:]]*[^#[:space:]]' "$COMMIT_MSG_FILE"; then
-    exit 0
+    # For `git commit -m ""` we still want to generate a message and open the editor
+    if grep -Eq '^[[:space:]]*[^#[:space:]]' "$COMMIT_MSG_FILE"; then
+        exit 0
+    fi
+    RUN_EDITOR=1
+else
+    # Plain `git commit`: always run AIGitCommit regardless of template content
+    :
 fi
 
 # Get only the diff of what has already been staged
@@ -44,13 +51,30 @@ fi
 TEMP_FILE=$(mktemp)
 
 # Execute aigitcommit to generate the commit message and append existing content
-echo "Generating commit message by using AIGitCommit..."
+echo "🚀 Generating commit message by using aigitcommit."
 echo "This may take a few seconds..."
-aigitcommit $REPO_ROOT --save $TEMP_FILE >/dev/null 2>&1
+aigitcommit "$REPO_ROOT" --save "$TEMP_FILE" >/dev/null 2>&1
 if [ $? -ne 0 ]; then
     echo "Error: aigitcommit failed to generate commit message."
-    rm -f $TEMP_FILE
+    rm -f "$TEMP_FILE"
     exit 1
 fi
 
-cat $COMMIT_MSG_FILE >>$TEMP_FILE && mv -f $TEMP_FILE $COMMIT_MSG_FILE
+cat "$COMMIT_MSG_FILE" >>"$TEMP_FILE" && mv -f "$TEMP_FILE" "$COMMIT_MSG_FILE"
+
+# When the commit was started with `git commit -m ""`, invoke the editor manually
+if [ "$RUN_EDITOR" -eq 1 ]; then
+    EDITOR_CMD=$(git var GIT_EDITOR 2>/dev/null)
+    if [ -z "$EDITOR_CMD" ]; then
+        if [ -n "$VISUAL" ]; then
+            EDITOR_CMD="$VISUAL"
+        elif [ -n "$EDITOR" ]; then
+            EDITOR_CMD="$EDITOR"
+        else
+            EDITOR_CMD="vi"
+        fi
+    fi
+
+    # shellcheck disable=SC2086 -- intentional word splitting to respect editor arguments
+    $EDITOR_CMD "$COMMIT_MSG_FILE"
+fi
