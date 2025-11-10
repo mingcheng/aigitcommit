@@ -9,7 +9,7 @@
  * File Created: 2025-10-16 15:07:05
  *
  * Modified By: mingcheng <mingcheng@apache.org>
- * Last Modified: 2025-11-07 14:28:13
+ * Last Modified: 2025-11-10 11:21:06
  */
 
 use git2::{Oid, Repository as _Repo, RepositoryOpenFlags, Signature};
@@ -188,12 +188,8 @@ impl Repository {
 
         // Get the HEAD tree, or None for initial commit
         let head_tree = match self.repository.head() {
-            Ok(head_ref) => {
-                let head_commit = head_ref.peel_to_commit()?;
-                Some(head_commit.tree()?)
-            }
+            Ok(head_ref) => Some(head_ref.peel_to_commit()?.tree()?),
             Err(e) if e.code() == git2::ErrorCode::UnbornBranch => {
-                // Initial commit - compare against empty tree
                 trace!("generating diff for initial commit");
                 None
             }
@@ -207,7 +203,7 @@ impl Repository {
             .force_binary(false)
             .ignore_submodules(true)
             .minimal(true)
-            .context_lines(3); // Standard 3 lines of context
+            .context_lines(3);
 
         // Generate diff between HEAD and index (staged changes)
         let diff = self.repository.diff_tree_to_index(
@@ -216,25 +212,30 @@ impl Repository {
             Some(&mut diffopts),
         )?;
 
-        // Get the list of files to exclude from diff
         let excluded_files = Self::get_excluded_files();
-
-        // Collect diff lines, filtering out excluded files
         let mut result = Vec::new();
+
         diff.print(git2::DiffFormat::Patch, |delta, _hunk, line| {
             // Check if the file should be excluded
-            if let Some(path) = delta.new_file().path()
-                && let Some(filename) = path.file_name()
-                && excluded_files.contains(&filename.to_string_lossy().as_ref())
-            {
-                warn!("skipping excluded file: {}", filename.to_string_lossy());
-                return true; // Skip this file
+            let should_exclude = delta
+                .new_file()
+                .path()
+                .and_then(|p| p.file_name())
+                .map(|f| excluded_files.contains(&f.to_string_lossy().as_ref()))
+                .unwrap_or(false);
+
+            if should_exclude {
+                if let Some(filename) = delta.new_file().path().and_then(|p| p.file_name()) {
+                    warn!("skipping excluded file: {}", filename.to_string_lossy());
+                }
+                return true;
             }
 
             // Add non-empty lines to result
-            let content = String::from_utf8_lossy(line.content()).trim().to_string();
-            if !content.is_empty() {
-                result.push(content);
+            let content = String::from_utf8_lossy(line.content());
+            let trimmed = content.trim();
+            if !trimmed.is_empty() {
+                result.push(trimmed.to_string());
             }
             true
         })?;
@@ -294,22 +295,17 @@ impl Repository {
         // Collect up to `size` commit messages
         let commits: Vec<String> = revwalk
             .take(size)
-            .filter_map(|oid_result| match oid_result {
-                Ok(oid) => self.repository.find_commit(oid).ok(),
-                Err(e) => {
-                    warn!("failed to get commit OID: {}", e);
-                    None
-                }
-            })
-            .filter_map(|commit| {
-                // Get commit message, default to empty string if invalid UTF-8
-                let msg = commit.message().unwrap_or("");
-                let trimmed = msg.trim();
-                if trimmed.is_empty() {
-                    None
-                } else {
-                    Some(trimmed.to_string())
-                }
+            .filter_map(|oid_result| {
+                oid_result
+                    .ok()
+                    .and_then(|oid| self.repository.find_commit(oid).ok())
+                    .and_then(|commit| {
+                        commit
+                            .message()
+                            .map(str::trim)
+                            .filter(|msg| !msg.is_empty())
+                            .map(String::from)
+                    })
             })
             .collect();
 
