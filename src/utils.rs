@@ -14,9 +14,14 @@
 
 use crate::git::message::GitMessage;
 use crate::git::repository::Repository;
+use std::fs;
 use std::io::Write;
+use tracing::trace;
 
-// Get environment variable with default value fallback
+/// Generic result type for utility functions
+pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+
+/// Get environment variable with default value fallback
 pub mod env {
     use std::env;
 
@@ -84,7 +89,7 @@ impl OutputFormat {
     }
 
     /// Write the message in the specified format
-    pub fn write(&self, message: &GitMessage) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn write(&self, message: &GitMessage) -> Result<()> {
         match self {
             Self::Stdout => {
                 writeln!(std::io::stdout(), "{}", message)?;
@@ -149,16 +154,43 @@ pub fn format_openai_error(error: async_openai::error::OpenAIError) -> String {
 }
 
 /// Save content to a file
-pub fn save_to_file(
-    path: &str,
-    content: &dyn std::fmt::Display,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub fn save_to_file(path: &str, content: &dyn std::fmt::Display) -> Result<()> {
     use std::fs::File;
     use std::io::Write;
 
     let mut file = File::create(path)?;
     file.write_all(content.to_string().as_bytes())?;
     file.flush()?;
+    Ok(())
+}
+
+/// Install the prepare-commit-msg git hook into the target repository.
+pub fn install_hook(path: &str, name: &str, content: &str) -> Result<()> {
+    let repo_dir =
+        fs::canonicalize(path).map_err(|e| format!("resolve repository path failed: {e}"))?;
+    let git_dir = repo_dir.join(".git");
+    if !git_dir.is_dir() {
+        return Err("not a git repository (missing .git directory)".into());
+    }
+
+    let hooks_dir = git_dir.join("hooks");
+    fs::create_dir_all(&hooks_dir).map_err(|e| format!("create hooks dir failed: {e}"))?;
+
+    let hook_path = hooks_dir.join(name);
+    fs::write(&hook_path, content).map_err(|e| format!("write hook file failed: {e}"))?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = fs::metadata(&hook_path)
+            .map_err(|e| format!("get hook metadata failed: {e}"))?
+            .permissions();
+        perms.set_mode(0o755);
+        fs::set_permissions(&hook_path, perms)
+            .map_err(|e| format!("set executable permission failed: {e}"))?;
+    }
+
+    trace!("hook installed at {:?}", hook_path);
     Ok(())
 }
 
@@ -193,5 +225,11 @@ Signed-off-by: mingcheng <mingcheng@apache.org>
     fn test_get_env() {
         let result = env::get("NONEXISTENT_VAR_XYZ", "default_value");
         assert_eq!(result, "default_value");
+    }
+
+    #[test]
+    fn test_install_hook() {
+        let result = install_hook(".", "test-hook", "#!/bin/sh\necho 'Test Hook'");
+        assert!(result.is_ok());
     }
 }

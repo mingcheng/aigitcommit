@@ -13,11 +13,13 @@
  */
 
 use crate::built_info;
-use clap::Parser;
+use clap::{Parser, Subcommand};
 
 #[derive(Debug, Parser)]
 #[command(name = built_info::PKG_NAME, about = built_info::PKG_DESCRIPTION, version = built_info::PKG_VERSION, author = built_info::PKG_AUTHORS)]
 pub struct Cli {
+    #[command(subcommand)]
+    pub command: Option<Command>,
     #[arg(
         default_value = ".",
         help = r#"Specify the file path to repository directory.
@@ -108,6 +110,22 @@ If not specified, the current directory will be used"#,
         required = false
     )]
     pub save: String,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum Command {
+    #[command(
+        name = "install-hook",
+        about = "Install git hook script into the specified repository directory"
+    )]
+    InstallHook {
+        #[arg(
+            default_value = ".",
+            help = "Repository directory to install the git hook into",
+            required = false
+        )]
+        repo_path: String,
+    },
 }
 
 #[cfg(test)]

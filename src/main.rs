@@ -13,7 +13,7 @@
  */
 
 use aigitcommit::built_info::{PKG_NAME, PKG_VERSION};
-use aigitcommit::cli::Cli;
+use aigitcommit::cli::{Cli, Command};
 use aigitcommit::git::message::GitMessage;
 use aigitcommit::git::repository::Repository;
 use aigitcommit::openai::OpenAI;
@@ -27,22 +27,34 @@ use std::io::Write;
 use std::path::Path;
 use tracing::{Level, debug, error, info, trace};
 
-use aigitcommit::utils::{OutputFormat, check_env_variables, env, save_to_file, should_signoff};
+use aigitcommit::utils::{
+    self, OutputFormat, check_env_variables, env, install_hook, save_to_file, should_signoff,
+};
 
 // Constants for better performance and maintainability
 const DEFAULT_MODEL: &str = "gpt-5";
 const DEFAULT_LOG_COUNT: usize = 5;
 const SYSTEM_PROMPT: &str = include_str!("../templates/system.txt");
 
-type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+// Constant for git hook installation
+const HOOK_NAME: &str = "prepare-commit-msg";
+const HOOK_CONTENT: &str = include_str!("../hooks/prepare-commit-msg");
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> utils::Result<()> {
     // Parse command line arguments
     let cli = Cli::parse();
 
     // Initialize logging
     init_logging(cli.verbose);
+
+    // Handle subcommands early and exit
+    if let Some(Command::InstallHook { repo_path }) = &cli.command {
+        trace!("install-hook subcommand invoked");
+        install_hook(repo_path, HOOK_NAME, HOOK_CONTENT)?;
+        println!("git hook `{}` has been installed successfully.", HOOK_NAME);
+        return Ok(());
+    }
 
     // Get the specified model name from environment variable, default constant
     let model_name = env::get("OPENAI_MODEL_NAME", DEFAULT_MODEL);
@@ -197,7 +209,7 @@ fn init_logging(verbose: bool) {
 }
 
 /// Check if the model is available
-async fn check_model_availability(client: &OpenAI, model_name: &str) -> Result<()> {
+async fn check_model_availability(client: &OpenAI, model_name: &str) -> utils::Result<()> {
     client.check_model(model_name).await?;
     println!(
         "the model name `{}` is available, {} is ready for use!",
