@@ -16,7 +16,6 @@ use aigitcommit::built_info::{PKG_NAME, PKG_VERSION};
 use aigitcommit::cli::Cli;
 use aigitcommit::git::message::GitMessage;
 use aigitcommit::git::repository::Repository;
-use aigitcommit::openai;
 use aigitcommit::openai::OpenAI;
 use arboard::Clipboard;
 use async_openai::types::{
@@ -28,9 +27,7 @@ use std::io::Write;
 use std::path::Path;
 use tracing::{Level, debug, error, info, trace};
 
-use aigitcommit::utils::{
-    OutputFormat, check_env_variables, env, format_openai_error, save_to_file, should_signoff,
-};
+use aigitcommit::utils::{OutputFormat, check_env_variables, env, save_to_file, should_signoff};
 
 // Constants for better performance and maintainability
 const DEFAULT_MODEL: &str = "gpt-5";
@@ -119,10 +116,7 @@ async fn main() -> Result<()> {
     ];
 
     // Send the request to OpenAI API and get the response
-    let result = client
-        .chat(&model_name, messages)
-        .await
-        .map_err(|e| format_openai_error(e))?;
+    let result = client.chat(&model_name, messages).await?;
 
     let (title, content) = result
         .split_once("\n\n")
@@ -139,9 +133,10 @@ async fn main() -> Result<()> {
 
     // Copy the commit message to clipboard if the --copy option is enabled
     if cli.copy_to_clipboard {
-        let mut clipboard = Clipboard::new()
-            .map_err(|e| format!("failed to initialize clipboard: {e}"))?;
-        clipboard.set_text(message.to_string())
+        let mut clipboard =
+            Clipboard::new().map_err(|e| format!("failed to initialize clipboard: {e}"))?;
+        clipboard
+            .set_text(message.to_string())
             .map_err(|e| format!("failed to copy to clipboard: {e}"))?;
         writeln!(
             std::io::stdout(),

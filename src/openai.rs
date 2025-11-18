@@ -118,12 +118,12 @@ impl OpenAI {
     /// Check if the OpenAI API and specified model are reachable and available.
     pub async fn check_model(&self, model_name: &str) -> Result<(), Box<dyn Error>> {
         let list = self.client.models().list().await?;
-        
+
         debug!(
             "Available models: {:?}",
             list.data.iter().map(|m| &m.id).collect::<Vec<_>>()
         );
-        
+
         if list.data.iter().any(|model| model.id == model_name) {
             debug!("OpenAI API is reachable and model {model_name} is available");
             Ok(())
