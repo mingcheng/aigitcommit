@@ -50,68 +50,85 @@ impl OpenAI {
     /// This function sets up the OpenAI client with the API key, base URL, and optional proxy settings.
     pub fn new() -> Self {
         // Set up OpenAI client configuration
-        let ai_config: OpenAIConfig = OpenAIConfig::new()
+        let ai_config = OpenAIConfig::new()
             .with_api_key(env::get("OPENAI_API_TOKEN", ""))
             .with_api_base(env::get("OPENAI_API_BASE", OPENAI_API_BASE))
             .with_org_id(built_info::PKG_NAME);
 
         // Set up HTTP client builder with default headers
-        let mut http_client_builder = ClientBuilder::new()
+        let mut http_client_builder = Self::create_http_client_builder();
+
+        // Set up proxy if specified
+        if let Some(proxy_addr) = Self::get_proxy_config() {
+            trace!("Using proxy: {proxy_addr}");
+            if let Ok(proxy) = Proxy::all(&proxy_addr) {
+                http_client_builder = http_client_builder.proxy(proxy);
+            }
+        }
+
+        // Set up request timeout if specified
+        if let Some(timeout) = Self::get_timeout_config() {
+            trace!("Setting request timeout to: {timeout}ms");
+            http_client_builder = http_client_builder.timeout(Duration::from_millis(timeout));
+        }
+
+        // Build the HTTP client
+        let http_client = http_client_builder
+            .build()
+            .expect("Failed to build HTTP client");
+
+        let client = Client::with_config(ai_config).with_http_client(http_client);
+        Self { client }
+    }
+
+    /// Create HTTP client builder with default headers
+    #[inline]
+    fn create_http_client_builder() -> ClientBuilder {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "HTTP-Referer",
+            HeaderValue::from_static(built_info::PKG_HOMEPAGE),
+        );
+        headers.insert("X-Title", HeaderValue::from_static(built_info::PKG_NAME));
+        headers.insert("X-Client-Type", HeaderValue::from_static("CLI"));
+
+        ClientBuilder::new()
             .user_agent(format!(
                 "{} ({})",
                 built_info::PKG_NAME,
                 built_info::PKG_DESCRIPTION
             ))
-            .default_headers({
-                let mut headers = HeaderMap::new();
-                headers.insert(
-                    "HTTP-Referer",
-                    HeaderValue::from_static(built_info::PKG_HOMEPAGE),
-                );
-                headers.insert("X-Title", HeaderValue::from_static(built_info::PKG_NAME));
-                headers.insert("X-Client-Type", HeaderValue::from_static("CLI"));
-                headers
-            });
+            .default_headers(headers)
+    }
 
-        // Set up proxy if specified
+    /// Get proxy configuration from environment
+    #[inline]
+    fn get_proxy_config() -> Option<String> {
         let proxy_addr = env::get("OPENAI_API_PROXY", "");
-        if !proxy_addr.is_empty() {
-            trace!("Using proxy: {proxy_addr}");
-            http_client_builder = http_client_builder.proxy(Proxy::all(proxy_addr).unwrap());
-        }
+        (!proxy_addr.is_empty()).then_some(proxy_addr)
+    }
 
-        // Set up request timeout if specified
-        let request_timeout = env::get("OPENAI_REQUEST_TIMEOUT", "");
-        if !request_timeout.is_empty()
-            && let Ok(timeout) = request_timeout.parse::<u64>()
-        {
-            trace!("Setting request timeout to: {request_timeout}ms");
-            http_client_builder = http_client_builder.timeout(Duration::from_millis(timeout));
-        }
-
-        // Set up timeout and build the HTTP client
-        let http_client = http_client_builder.build().unwrap();
-
-        let client = Client::with_config(ai_config).with_http_client(http_client);
-        OpenAI { client }
+    /// Get timeout configuration from environment
+    #[inline]
+    fn get_timeout_config() -> Option<u64> {
+        let timeout_str = env::get("OPENAI_REQUEST_TIMEOUT", "");
+        timeout_str.parse::<u64>().ok()
     }
 
     /// Check if the OpenAI API and specified model are reachable and available.
     pub async fn check_model(&self, model_name: &str) -> Result<(), Box<dyn Error>> {
-        match self.client.models().list().await {
-            Ok(list) => {
-                debug!(
-                    "Available models: {:?}",
-                    list.data.iter().map(|m| &m.id).collect::<Vec<_>>()
-                );
-                if list.data.iter().any(|model| model.id == model_name) {
-                    debug!("OpenAI API is reachable and model {model_name} is available");
-                    Ok(())
-                } else {
-                    Err(format!("Model {model_name} not found").into())
-                }
-            }
-            Err(e) => Err(e.into()),
+        let list = self.client.models().list().await?;
+        
+        debug!(
+            "Available models: {:?}",
+            list.data.iter().map(|m| &m.id).collect::<Vec<_>>()
+        );
+        
+        if list.data.iter().any(|model| model.id == model_name) {
+            debug!("OpenAI API is reachable and model {model_name} is available");
+            Ok(())
+        } else {
+            Err(format!("Model {model_name} not found").into())
         }
     }
 
@@ -126,20 +143,17 @@ impl OpenAI {
             .messages(message)
             .build()?;
 
-        // trace!("Request: {:?}", request);
         trace!("✨ Using model: {}", model_name);
 
-        let response = match self.client.chat().create(request).await {
-            Ok(s) => s,
-            Err(e) => return Err(e),
-        };
+        let response = self.client.chat().create(request).await?;
 
-        let mut result = vec![];
-        response.choices.iter().for_each(|choice| {
-            result.push(choice.message.content.as_ref().unwrap().to_string());
-        });
+        let result: Vec<String> = response
+            .choices
+            .iter()
+            .filter_map(|choice| choice.message.content.as_ref().map(ToString::to_string))
+            .collect();
 
-        if let Option::Some(usage) = response.usage {
+        if let Some(usage) = response.usage {
             debug!(
                 "usage: completion_tokens: {}, prompt_tokens: {}, total_tokens: {}",
                 usage.completion_tokens, usage.prompt_tokens, usage.total_tokens
@@ -155,10 +169,7 @@ impl OpenAI {
             diffs: &diff.join("\n"),
         };
 
-        match template.render() {
-            Ok(content) => Ok(content),
-            Err(e) => Err(Box::new(e)),
-        }
+        Ok(template.render()?)
     }
 }
 
