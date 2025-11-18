@@ -114,59 +114,61 @@ Note: Use `--yes` to skip interactive confirmations in non-TTY environments.
 
 ### Git Hook
 
-AIGitCommit includes a `prepare-commit-msg` hook that automatically generates commit messages during your workflow. The hook triggers when you run `git commit` or `git commit -m ""`, generates a message from staged changes, and opens your editor for review.
+AIGitCommit includes a `prepare-commit-msg` hook that automatically generates commit messages during your workflow.
+
+**Quick install (recommended)**
+
+Install into the current repository:
+
+```bash
+aigitcommit install-hook .
+```
+
+Install into a specific repository:
+
+```bash
+aigitcommit install-hook /path/to/repo
+```
+
+Prerequisite: `aigitcommit` is installed and available in your `PATH`.
 
 **Prerequisites**
 
 - `aigitcommit` must be installed and available in your `PATH`
 - Configure required environment variables before committing (see [Configuration](#configuration))
 
-**Per-Repository Installation**
-
-Install the hook for a single repository:
+**Manual install (alternative)**
 
 ```bash
 cp hooks/prepare-commit-msg .git/hooks/prepare-commit-msg
 chmod +x .git/hooks/prepare-commit-msg
 ```
 
-After installation, the hook runs automatically when you execute `git commit`. You can review and edit the generated message before finalizing the commit.
-
 **Disable for a single commit**: Use `git commit --no-verify` to bypass the hook.
 
-**Global Installation**
+**Global installation (optional)**
 
-Set up the hook for all new and existing repositories using Git templates:
+Use Git templates so new repos have the hook:
 
 ```bash
-# Create template directory structure
 mkdir -p ~/.git-template/hooks
 cp hooks/prepare-commit-msg ~/.git-template/hooks/prepare-commit-msg
 chmod +x ~/.git-template/hooks/prepare-commit-msg
-
-# Configure Git to use this template for new repositories
 git config --global init.templateDir ~/.git-template
+```
 
-# Apply to existing repositories
-# Option 1: Copy manually
+Apply to an existing repo (either copy the file or re-init):
+
+```bash
 cp ~/.git-template/hooks/prepare-commit-msg <repo>/.git/hooks/
-
-# Option 2: Re-initialize (safe, preserves existing data)
+# or
 cd <repo> && git init
 ```
 
-**Important**: Setting `core.hooksPath` globally overrides all repository hooks. The template approach is more flexible and recommended.
+**Hook behavior (summary)**
 
-**Hook Behavior**
-
-The hook only runs when:
-- You execute `git commit` (interactive mode) with no pre-written message
-- You execute `git commit -m ""` (explicit empty message)
-
-The hook skips execution for:
-- Commits with pre-written messages (`git commit -m "message"`)
-- Merge commits, rebase, cherry-pick, or other automated commits
-- When the commit message file already contains non-comment content
+- Triggers on `git commit` with no message or with `-m ""`.
+- Skips merge/rebase/cherry-pick and commits with an existing message.
 
 **Troubleshooting**
 
