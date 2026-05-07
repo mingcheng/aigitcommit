@@ -9,7 +9,7 @@ keywords = ["git", "tools", "ai", "development"]
 authors = ["mingcheng <mingcheng@apache.org>"]
 repository = "https://github.com/mingcheng/aigitcommit"
 homepage = "https://github.com/mingcheng/aigitcommit"
-exclude = ["assets/*", "hooks/*"]
+exclude = ["assets/*"]
 categories = ["command-line-utilities", "development-tools"]
 
 [dependencies]
