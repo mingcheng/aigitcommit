@@ -126,7 +126,6 @@ pub fn check_env_variables() {
         "OPENAI_MODEL_NAME",
         "OPENAI_API_PROXY",
         "OPENAI_API_TIMEOUT",
-        "OPENAI_API_MAX_TOKENS",
         "AIGITCOMMIT_SIGNOFF",
     ]
     .iter()
@@ -147,6 +146,10 @@ pub fn save_to_file(path: &str, content: &dyn std::fmt::Display) -> Result<()> {
 }
 
 /// Install the prepare-commit-msg git hook into the target repository.
+///
+/// If a hook with the same name already exists, it is preserved by renaming
+/// it to `<name>.bak` (overwriting any previous backup) before the new hook
+/// is written. This prevents silently clobbering a user's existing hook.
 pub fn install_hook(path: &str, name: &str, content: &str) -> Result<()> {
     let repo_dir =
         fs::canonicalize(path).map_err(|e| format!("resolve repository path failed: {e}"))?;
@@ -159,6 +162,18 @@ pub fn install_hook(path: &str, name: &str, content: &str) -> Result<()> {
     fs::create_dir_all(&hooks_dir).map_err(|e| format!("create hooks dir failed: {e}"))?;
 
     let hook_path = hooks_dir.join(name);
+
+    // Back up any existing hook with the same name to avoid silent overwrite.
+    if hook_path.exists() {
+        let backup = hooks_dir.join(format!("{name}.bak"));
+        if let Err(e) = fs::rename(&hook_path, &backup) {
+            return Err(
+                format!("failed to back up existing hook {hook_path:?} -> {backup:?}: {e}").into(),
+            );
+        }
+        trace!("backed up existing hook to {:?}", backup);
+    }
+
     fs::write(&hook_path, content).map_err(|e| format!("write hook file failed: {e}"))?;
 
     #[cfg(unix)]
@@ -250,15 +265,43 @@ Signed-off-by: mingcheng <mingcheng@apache.org>
 
     #[test]
     fn test_install_hook() {
-        let result = install_hook(".", "test-hook", "#!/bin/sh\necho 'Test Hook'");
-        assert!(result.is_ok());
+        // Use an isolated temp directory containing a fake `.git` so the test
+        // does not pollute the workspace's real `.git/hooks/`.
+        let tmp = std::env::temp_dir()
+            .join(format!("aigitcommit-install-hook-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(tmp.join(".git")).unwrap();
+
+        let path = tmp.to_str().unwrap();
+        install_hook(path, "prepare-commit-msg", "#!/bin/sh\necho a\n").unwrap();
+        let hook = tmp.join(".git/hooks/prepare-commit-msg");
+        assert_eq!(
+            std::fs::read_to_string(&hook).unwrap(),
+            "#!/bin/sh\necho a\n"
+        );
+
+        // Re-install: existing hook should be backed up, not silently lost.
+        install_hook(path, "prepare-commit-msg", "#!/bin/sh\necho b\n").unwrap();
+        let backup = tmp.join(".git/hooks/prepare-commit-msg.bak");
+        assert!(backup.exists(), "backup file should exist after reinstall");
+        assert_eq!(
+            std::fs::read_to_string(&backup).unwrap(),
+            "#!/bin/sh\necho a\n"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&hook).unwrap(),
+            "#!/bin/sh\necho b\n"
+        );
+
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 
     #[test]
     fn test_install_hook_rejects_non_git_dir() {
         let tmp = std::env::temp_dir()
             .join(format!("aigitcommit-not-a-repo-{}", std::process::id()));
-        let _ = std::fs::create_dir_all(&tmp);
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
         let result = install_hook(tmp.to_str().unwrap(), "x", "#!/bin/sh\n");
         assert!(result.is_err());
         let _ = std::fs::remove_dir_all(&tmp);

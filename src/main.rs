@@ -201,24 +201,31 @@ async fn main() -> utils::Result<()> {
         trace!("save option is enabled, will save the commit message to a file");
 
         // Save the commit message to the specified file
-        save_to_file(&cli.save, &message)
-            .map(|f| info!("commit message saved to file: {:?}", f))
-            .unwrap_or_else(|e| error!("failed to save commit message to file: {}", e));
+        match save_to_file(&cli.save, &message) {
+            Ok(()) => info!("commit message saved to file: {}", cli.save),
+            Err(e) => error!("failed to save commit message to file `{}`: {}", cli.save, e),
+        }
     }
 
     Ok(())
 }
 
-/// Initialize logging based on verbosity level
+/// Initialize logging.
+///
+/// When `verbose` is true, logs at TRACE level. Otherwise initialize a
+/// minimal subscriber at WARN level so that warnings from fallback paths
+/// (e.g. missing git user.email, invalid timeout values) are still surfaced
+/// to the user instead of being silently dropped.
 #[inline]
 fn init_logging(verbose: bool) {
-    if verbose {
-        tracing_subscriber::fmt()
-            .with_max_level(Level::TRACE)
-            .without_time()
-            .with_target(false)
-            .init();
+    let level = if verbose { Level::TRACE } else { Level::WARN };
+    let _ = tracing_subscriber::fmt()
+        .with_max_level(level)
+        .without_time()
+        .with_target(false)
+        .try_init();
 
+    if verbose {
         trace!(
             "verbose mode enabled, set the log level to TRACE. It will makes a little bit noise."
         );

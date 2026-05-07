@@ -66,7 +66,12 @@ impl Repository {
     /// * `Err` - Repository not found or has no working directory (bare repo)
     pub fn new(path: &str) -> Result<Repository, Box<dyn Error>> {
         trace!("opening repository at {path}");
-        let repository = _Repo::open_ext(path, RepositoryOpenFlags::empty(), vec![path])?;
+        // Allow upward discovery from `path` so callers can pass any
+        // subdirectory inside a working tree. `ceiling_dirs` is empty so
+        // discovery walks up to the filesystem root or first `.git`.
+        let no_ceilings: [&str; 0] = [];
+        let repository =
+            _Repo::open_ext(path, RepositoryOpenFlags::empty(), no_ceilings.iter().copied())?;
 
         trace!("repository opened successfully");
         if let Some(work_dir) = repository.workdir() {
