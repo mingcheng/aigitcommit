@@ -68,12 +68,11 @@ pub fn should_signoff(repository: &Repository, cli_signoff: bool) -> bool {
 }
 
 /// Output format for commit messages
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum OutputFormat {
     Stdout,
     Table,
     Json,
-    // File
 }
 
 impl OutputFormat {
@@ -134,23 +133,6 @@ pub fn check_env_variables() {
     .for_each(|v| {
         env::exists(v);
     });
-}
-
-/// Convert OpenAI error to user-friendly error message
-pub fn format_openai_error(error: async_openai::error::OpenAIError) -> String {
-    use async_openai::error::OpenAIError;
-
-    match error {
-        OpenAIError::Reqwest(_) | OpenAIError::StreamError(_) => {
-            "network request error".to_string()
-        }
-        OpenAIError::JSONDeserialize(_error, message) => {
-            format!("json deserialization error: {message}")
-        }
-        OpenAIError::InvalidArgument(_) => "invalid argument".to_string(),
-        OpenAIError::FileSaveError(_) | OpenAIError::FileReadError(_) => "io error".to_string(),
-        OpenAIError::ApiError(e) => format!("api error {e:?}"),
-    }
 }
 
 /// Save content to a file
@@ -228,8 +210,57 @@ Signed-off-by: mingcheng <mingcheng@apache.org>
     }
 
     #[test]
+    fn test_get_bool_truthy_and_falsy() {
+        // SAFETY: tests run in the same process; use uniquely-named keys.
+        unsafe {
+            std::env::set_var("AIGC_TEST_BOOL_T1", "1");
+            std::env::set_var("AIGC_TEST_BOOL_T2", "TRUE");
+            std::env::set_var("AIGC_TEST_BOOL_T3", "Yes");
+            std::env::set_var("AIGC_TEST_BOOL_T4", "on");
+            std::env::set_var("AIGC_TEST_BOOL_F1", "0");
+            std::env::set_var("AIGC_TEST_BOOL_F2", "no");
+        }
+        assert!(env::get_bool("AIGC_TEST_BOOL_T1"));
+        assert!(env::get_bool("AIGC_TEST_BOOL_T2"));
+        assert!(env::get_bool("AIGC_TEST_BOOL_T3"));
+        assert!(env::get_bool("AIGC_TEST_BOOL_T4"));
+        assert!(!env::get_bool("AIGC_TEST_BOOL_F1"));
+        assert!(!env::get_bool("AIGC_TEST_BOOL_F2"));
+        assert!(!env::get_bool("AIGC_TEST_BOOL_MISSING"));
+    }
+
+    #[test]
+    fn test_output_format_detect() {
+        assert_eq!(OutputFormat::detect(true, false), OutputFormat::Json);
+        assert_eq!(OutputFormat::detect(true, true), OutputFormat::Json);
+        assert_eq!(OutputFormat::detect(false, true), OutputFormat::Stdout);
+        assert_eq!(OutputFormat::detect(false, false), OutputFormat::Table);
+    }
+
+    #[test]
+    fn test_save_to_file_roundtrip() {
+        let path = std::env::temp_dir()
+            .join(format!("aigitcommit-save-{}.txt", std::process::id()));
+        let path_str = path.to_string_lossy().into_owned();
+        save_to_file(&path_str, &"hello world").unwrap();
+        let read = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(read, "hello world");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
     fn test_install_hook() {
         let result = install_hook(".", "test-hook", "#!/bin/sh\necho 'Test Hook'");
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_install_hook_rejects_non_git_dir() {
+        let tmp = std::env::temp_dir()
+            .join(format!("aigitcommit-not-a-repo-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&tmp);
+        let result = install_hook(tmp.to_str().unwrap(), "x", "#!/bin/sh\n");
+        assert!(result.is_err());
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 }

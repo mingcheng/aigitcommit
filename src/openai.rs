@@ -108,11 +108,20 @@ impl OpenAI {
         (!proxy_addr.is_empty()).then_some(proxy_addr)
     }
 
-    /// Get timeout configuration from environment
+    /// Get request timeout (in milliseconds) from the environment.
+    ///
+    /// Reads `OPENAI_API_TIMEOUT` (kept in sync with the documented variable
+    /// name) and falls back to the legacy `OPENAI_REQUEST_TIMEOUT` for
+    /// backward compatibility. Returns `None` when neither is set or parses.
     #[inline]
     fn get_timeout_config() -> Option<u64> {
-        let timeout_str = env::get("OPENAI_REQUEST_TIMEOUT", "");
-        timeout_str.parse::<u64>().ok()
+        for key in ["OPENAI_API_TIMEOUT", "OPENAI_REQUEST_TIMEOUT"] {
+            let raw = env::get(key, "");
+            if let Ok(v) = raw.parse::<u64>() {
+                return Some(v);
+            }
+        }
+        None
     }
 
     /// Check if the OpenAI API and specified model are reachable and available.

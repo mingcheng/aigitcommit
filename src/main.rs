@@ -81,10 +81,10 @@ async fn main() -> utils::Result<()> {
     // Initialize repository
     let repo_path = Path::new(&cli.repo_path);
     let repo_dir = fs::canonicalize(repo_path)
-        .map_err(|e| format!("failed to resolve repository path: {e}"))?;
+        .map_err(|e| format!("failed to resolve repository path `{}`: {e}", cli.repo_path))?;
 
     if !repo_dir.is_dir() {
-        return Err("the specified path is not a directory".into());
+        return Err(format!("the specified path is not a directory: {:?}", repo_dir).into());
     }
 
     trace!("specified repository directory: {:?}", repo_dir);
