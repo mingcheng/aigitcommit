@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Hangzhou Guanwaii Technology Co,.Ltd.
+ * Copyright (c) 2025-2026 mingcheng <mingcheng@apache.org>
  *
  * This source code is licensed under the MIT License,
  * which is located in the LICENSE file in the source tree's root directory.
@@ -12,6 +12,12 @@
  * Last Modified: 2025-03-03 19:36:07
  */
 
+pub mod built_info {
+    include!(concat!(env!("OUT_DIR"), "/built.rs"));
+}
+
+pub mod cache;
 pub mod cli;
 pub mod git;
 pub mod openai;
+pub mod utils;

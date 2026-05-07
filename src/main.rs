@@ -1,64 +1,218 @@
-/*
- * Copyright (c) 2025 Hangzhou Guanwaii Technology Co,.Ltd.
+/*!
+ * Copyright (c) 2026 mingcheng <mingcheng@apache.org>
  *
  * This source code is licensed under the MIT License,
  * which is located in the LICENSE file in the source tree's root directory.
  *
- * File: main.rs
- * Author: mingcheng (mingcheng@apache.org)
+ * Author: mingcheng <mingcheng@apache.org>
  * File Created: 2025-03-01 17:17:30
  *
- * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-09-26 15:45:37
+ * Modified By: mingcheng <mingcheng@apache.org>
+ * Last Modified: 2026-05-07 11:39:56
  */
 
-use aigitcommit::cli::{Cli, print_table};
+use aigitcommit::built_info::{PKG_NAME, PKG_VERSION};
+use aigitcommit::cache::Cache;
+use aigitcommit::cli::{Cli, Command};
 use aigitcommit::git::message::GitMessage;
 use aigitcommit::git::repository::Repository;
-use aigitcommit::openai;
 use aigitcommit::openai::OpenAI;
 use arboard::Clipboard;
-use async_openai::error::OpenAIError;
 use async_openai::types::{
     ChatCompletionRequestSystemMessageArgs, ChatCompletionRequestUserMessageArgs,
 };
 use clap::Parser;
-use dialoguer::Confirm;
-use std::error::Error;
-use std::fs::File;
+use std::fs;
 use std::io::Write;
-use std::{env, fs};
-use tracing::{Level, debug, trace};
-mod built_info {
-    include!(concat!(env!("OUT_DIR"), "/built.rs"));
-}
+use std::path::Path;
+use tracing::{Level, debug, error, info, trace};
 
-/// The output format for the commit message
-#[derive(Debug)]
-enum OutPutFormat {
-    Stdout,
-    Table,
-    Json,
-}
+use aigitcommit::utils::{
+    self, OutputFormat, check_env_variables, env, install_hook, save_to_file, should_signoff,
+};
 
-/// Detect the output format based on the command line arguments
-fn detect_output_format(cli: &Cli) -> OutPutFormat {
-    if cli.json {
-        return OutPutFormat::Json;
-    } else if cli.no_table {
-        return OutPutFormat::Stdout;
-    }
+// Constants for better performance and maintainability
+const DEFAULT_MODEL: &str = "gpt-5";
+const DEFAULT_LOG_COUNT: usize = 5;
+const SYSTEM_PROMPT: &str = include_str!("../templates/system.txt");
 
-    OutPutFormat::Table
-}
+// Constant for git hook installation
+const HOOK_NAME: &str = "prepare-commit-msg";
+const HOOK_CONTENT: &str = include_str!("../hooks/prepare-commit-msg");
 
 #[tokio::main]
-async fn main() -> std::result::Result<(), Box<dyn Error>> {
+async fn main() -> utils::Result<()> {
     // Parse command line arguments
     let cli = Cli::parse();
 
     // Initialize logging
-    if cli.verbose {
+    init_logging(cli.verbose);
+
+    // Handle subcommands early and exit
+    if let Some(Command::InstallHook { repo_path }) = &cli.command {
+        trace!("install-hook subcommand invoked");
+        install_hook(repo_path, HOOK_NAME, HOOK_CONTENT)?;
+        println!("git hook `{}` has been installed successfully.", HOOK_NAME);
+        return Ok(());
+    }
+
+    // Get the specified model name from environment variable, default constant
+    let model_name = env::get("OPENAI_MODEL_NAME", DEFAULT_MODEL);
+
+    // Instantiate OpenAI client, ready to send requests to the OpenAI API
+    let client = OpenAI::new();
+
+    // Check if the environment variables are set and print the configured values
+    if cli.check_env {
+        trace!("check env option is enabled");
+        debug!("model name: `{}`", &model_name);
+        check_env_variables();
+        return Ok(());
+    }
+
+    // Check if the model name is valid
+    if cli.check_model {
+        trace!("check model option is enabled");
+        debug!("model name: `{}`", &model_name);
+        check_model_availability(&client, &model_name).await?;
+        return Ok(());
+    }
+
+    // Initialize repository
+    let repo_path = Path::new(&cli.repo_path);
+    let repo_dir = fs::canonicalize(repo_path)
+        .map_err(|e| format!("failed to resolve repository path: {e}"))?;
+
+    if !repo_dir.is_dir() {
+        return Err("the specified path is not a directory".into());
+    }
+
+    trace!("specified repository directory: {:?}", repo_dir);
+    let repository = Repository::new(
+        repo_dir
+            .to_str()
+            .ok_or("invalid UTF-8 in repository path")?,
+    )?;
+
+    // Initialize the local cache rooted under the repository's .git directory
+    let cache = Cache::new(repository.git_dir());
+
+    // Handle --clear-cache early: wipe the cache and exit before doing any work
+    if cli.clear_cache {
+        match cache.clear() {
+            Ok(n) => {
+                info!("cleared {} cache entries", n);
+                writeln!(std::io::stdout(), "cleared {n} cache entries.")?;
+            }
+            Err(e) => return Err(format!("failed to clear cache: {e}").into()),
+        }
+        return Ok(());
+    }
+
+    // Get the diff and logs from the repository
+    let diffs = repository.get_diff()?;
+    debug!("got diff size is {}", diffs.len());
+
+    if diffs.is_empty() {
+        return Err("no changes found in the repository".into());
+    }
+
+    // Get the last N commit logs
+    // if the repository has less than N commits, it will return all logs
+    let logs = repository.get_logs(DEFAULT_LOG_COUNT)?;
+    debug!("got logs size is {}", logs.len());
+
+    // If git commit log is empty, return error
+    if logs.is_empty() {
+        return Err("no commit history found in the repository".into());
+    }
+
+    // Compute a stable cache key from the inputs that influence the API request.
+    // When nothing has changed (same diff, same recent logs, same model & prompt)
+    // we can reuse the previously generated message and skip the API call.
+    let cache_key = Cache::build_key(&model_name, SYSTEM_PROMPT, &diffs, &logs);
+    debug!("cache key: {}", cache_key);
+
+    let result = if !cli.no_cache {
+        if let Some(cached) = cache.get(&cache_key) {
+            info!("reusing cached commit message (key: {})", cache_key);
+            cached
+        } else {
+            let fresh = request_completion(&client, &model_name, &logs, &diffs).await?;
+            cache.put(&cache_key, &fresh);
+            fresh
+        }
+    } else {
+        trace!("--no-cache enabled, skipping cache lookup");
+        request_completion(&client, &model_name, &logs, &diffs).await?
+    };
+
+    let (title, content) = result
+        .split_once("\n\n")
+        .ok_or("Invalid response format: expected title and content separated by double newline")?;
+
+    // Detect auto signoff from environment variable or CLI flag
+    let need_signoff = should_signoff(&repository, cli.signoff);
+
+    let message = GitMessage::new(&repository, title, content, need_signoff)?;
+
+    // Decide the output format based on the command line arguments
+    let output_format = OutputFormat::detect(cli.json, cli.no_table);
+    output_format.write(&message)?;
+
+    // Copy the commit message to clipboard if the --copy option is enabled
+    if cli.copy_to_clipboard {
+        let mut clipboard =
+            Clipboard::new().map_err(|e| format!("failed to initialize clipboard: {e}"))?;
+        clipboard
+            .set_text(message.to_string())
+            .map_err(|e| format!("failed to copy to clipboard: {e}"))?;
+        writeln!(
+            std::io::stdout(),
+            "the commit message has been copied to clipboard."
+        )?;
+    }
+
+    // directly commit the changes to the repository if the --commit option is enabled
+    if cli.commit {
+        trace!("commit option is enabled, will commit the changes directly to the repository");
+
+        let should_commit = cli.yes || {
+            cliclack::intro(format!("{PKG_NAME} v{PKG_VERSION}"))?;
+            cliclack::confirm("Are you sure to commit with generated message below?").interact()?
+        };
+
+        if should_commit {
+            match repository.commit(&message) {
+                Ok(oid) => {
+                    cliclack::note("Commit successful, last commit ID:", oid)?;
+                }
+                Err(e) => {
+                    cliclack::note("Commit failed", e)?;
+                }
+            }
+        }
+
+        cliclack::outro("Bye~")?;
+    }
+
+    // If the --save option is enabled, save the commit message to a file
+    if !cli.save.is_empty() {
+        trace!("save option is enabled, will save the commit message to a file");
+
+        // Save the commit message to the specified file
+        save_to_file(&cli.save, &message)
+            .map(|f| info!("commit message saved to file: {:?}", f))
+            .unwrap_or_else(|e| error!("failed to save commit message to file: {}", e));
+    }
+
+    Ok(())
+}
+
+/// Initialize logging based on verbosity level
+#[inline]
+fn init_logging(verbose: bool) {
+    if verbose {
         tracing_subscriber::fmt()
             .with_max_level(Level::TRACE)
             .without_time()
@@ -69,106 +223,30 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
             "verbose mode enabled, set the log level to TRACE. It will makes a little bit noise."
         );
     }
+}
 
-    // Get the specified model name from environment variable, default to "gpt-4"
-    let model_name = env::var("OPENAI_MODEL_NAME").unwrap_or_else(|_| String::from("gpt-5"));
+/// Check if the model is available
+async fn check_model_availability(client: &OpenAI, model_name: &str) -> utils::Result<()> {
+    client.check_model(model_name).await?;
+    println!(
+        "the model name `{}` is available, {} is ready for use!",
+        model_name, PKG_NAME
+    );
+    Ok(())
+}
 
-    // Instantiate OpenAI client, ready to send requests to the OpenAI API
-    let client = openai::OpenAI::new();
+/// Build the chat request and call the OpenAI API, returning the raw response.
+async fn request_completion(
+    client: &OpenAI,
+    model_name: &str,
+    logs: &[String],
+    diffs: &[String],
+) -> utils::Result<String> {
+    let content = OpenAI::prompt(logs, diffs)?;
 
-    // Check if the environment variables are set and print the configured values
-    if cli.check_env {
-        fn check_and_print_env(var_name: &str) {
-            match env::var(var_name) {
-                Ok(value) => {
-                    debug!("{} is set to {}", var_name, value);
-                    // Print the value of the environment variable
-                    println!("{:20}\t{}", var_name, value);
-                }
-                Err(_) => {
-                    debug!("{} is not set", var_name);
-                }
-            }
-        }
-
-        trace!("check env option is enabled, will check the OpenAI API key and model name");
-        debug!("the model name is `{}`", &model_name);
-
-        [
-            "OPENAI_API_BASE",
-            "OPENAI_API_TOKEN",
-            "OPENAI_MODEL_NAME",
-            "OPENAI_API_PROXY",
-            "OPENAI_API_TIMEOUT",
-            "OPENAI_API_MAX_TOKENS",
-            "GIT_AUTO_SIGNOFF",
-        ]
-        .iter()
-        .for_each(|v| check_and_print_env(v));
-
-        return Ok(());
-    }
-
-    // Check if the model name is valid
-    if cli.check_model {
-        trace!("check option is enabled, will check the OpenAI API key and model name");
-        debug!("the model name is `{}`", &model_name);
-
-        match client.check_model(&model_name).await {
-            Ok(()) => {
-                println!(
-                    "the model name `{}` is available, {} is ready for use!",
-                    model_name,
-                    built_info::PKG_NAME
-                );
-            }
-            Err(e) => {
-                return Err(format!("the model name `{model_name}` is not available: {e}").into());
-            }
-        }
-
-        return Ok(());
-    }
-
-    // Check if the specified path is a valid directory
-    let repo_dir = fs::canonicalize(&cli.repo_path)?;
-
-    // Check if the directory is empty
-    if !repo_dir.is_dir() {
-        return Err("the specified path is not a directory".into());
-    }
-
-    trace!("specified repository directory: {:?}", repo_dir);
-    // Check if the directory is a valid git repository
-    let repository = Repository::new(repo_dir.to_str().unwrap_or("."))?;
-
-    // Get the diff and logs from the repository
-    let diffs = repository.get_diff()?;
-    debug!("got diff size is {}", diffs.len());
-    if diffs.is_empty() {
-        return Err("no diff found".into());
-    }
-
-    // Get the last 5 commit logs
-    // if the repository has less than 5 commits, it will return all logs
-    let logs = repository.get_logs(5)?;
-    debug!("got logs size is {}", logs.len());
-
-    // If git commit log is empty, return error
-    if logs.is_empty() {
-        return Err("no commit logs found".into());
-    }
-
-    // Generate the prompt which will be sent to OpenAI API
-    let content = OpenAI::prompt(&logs, &diffs)?;
-
-    // Load the system prompt from the template file
-    let system_prompt = include_str!("../templates/system.txt");
-
-    // The request contains the system message and user message
     let messages = vec![
         ChatCompletionRequestSystemMessageArgs::default()
-            .content(system_prompt)
+            .content(SYSTEM_PROMPT)
             .build()?
             .into(),
         ChatCompletionRequestUserMessageArgs::default()
@@ -177,97 +255,5 @@ async fn main() -> std::result::Result<(), Box<dyn Error>> {
             .into(),
     ];
 
-    // Send the request to OpenAI API and get the response
-    let result = match client.chat(&model_name.to_string(), messages).await {
-        Ok(s) => s,
-        Err(e) => {
-            let message = match e {
-                OpenAIError::Reqwest(_) | OpenAIError::StreamError(_) => {
-                    "network request error".to_string()
-                }
-                OpenAIError::JSONDeserialize(_err) => "json deserialization error".to_string(),
-                OpenAIError::InvalidArgument(_) => "invalid argument".to_string(),
-                OpenAIError::FileSaveError(_) | OpenAIError::FileReadError(_) => {
-                    "io error".to_string()
-                }
-                OpenAIError::ApiError(e) => format!("api error {e:?}"),
-            };
-
-            return Err(message.into());
-        }
-    };
-
-    let (title, content) = result.split_once("\n\n").unwrap();
-
-    // Detect auto signoff from environment variable
-    let need_signoff = cli.signoff
-        || env::var("GIT_AUTO_SIGNOFF")
-            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-            .unwrap_or(false);
-
-    let message: GitMessage = GitMessage::new(&repository, title, content, need_signoff)?;
-
-    // Decide the output format based on the command line arguments
-    match detect_output_format(&cli) {
-        OutPutFormat::Stdout => {
-            // Write the commit message to stdout
-            trace!("write to stdout, and finish the process");
-            writeln!(std::io::stdout(), "{}", message)?;
-        }
-        OutPutFormat::Json => {
-            // Print the commit message in JSON format
-            let json = serde_json::to_string_pretty(&message)?;
-            writeln!(std::io::stdout(), "{}", json)?;
-        }
-        OutPutFormat::Table => {
-            // Default print message in table
-            print_table(&message.title, &message.content);
-        }
-    };
-
-    // Copy the commit message to clipboard if the --copy option is enabled
-    if cli.copy_to_clipboard {
-        let mut clipboard = Clipboard::new()?;
-        clipboard.set_text(format!("{}", &message))?;
-        writeln!(
-            std::io::stdout(),
-            "the commit message has been copied to clipboard."
-        )?;
-    }
-
-    // directly commit the changes to the repository if the --commit option is enabled
-    if cli.commit {
-        trace!("commit option is enabled, will commit the changes to the repository");
-        let mut confirm = Confirm::new();
-        confirm
-            .with_prompt("do you want to commit the changes with the generated commit message?")
-            .default(false);
-
-        // Prompt the user for confirmation if --yes option is not enabled
-        if cli.yes || confirm.interact()? {
-            match repository.commit(&message) {
-                Ok(_) => {
-                    writeln!(std::io::stdout(), "commit successful!")?;
-                }
-                Err(e) => {
-                    writeln!(std::io::stderr(), "commit failed: {e}")?;
-                }
-            }
-        }
-    }
-
-    // If the --save option is enabled, save the commit message to a file
-    if !cli.save.is_empty() {
-        trace!("save option is enabled, will save the commit message to a file");
-        let save_path = &cli.save;
-        debug!("the save file path is {:?}", &save_path);
-
-        let mut file = File::create(save_path)?;
-        file.write_all(result.as_bytes())?;
-        file.flush()?;
-
-        writeln!(std::io::stdout(), "commit message saved to {save_path}")?;
-    }
-
-    Ok(())
+    Ok(client.chat(model_name, messages).await?)
 }

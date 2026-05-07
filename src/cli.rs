@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Hangzhou Guanwaii Technology Co,.Ltd.
+ * Copyright (c) 2025-2026 mingcheng <mingcheng@apache.org>
  *
  * This source code is licensed under the MIT License,
  * which is located in the LICENSE file in the source tree's root directory.
@@ -12,14 +12,14 @@
  * Last Modified: 2025-03-05 00:25:24
  */
 
-use clap::Parser;
-mod built_info {
-    include!(concat!(env!("OUT_DIR"), "/built.rs"));
-}
+use crate::built_info;
+use clap::{Parser, Subcommand};
 
 #[derive(Debug, Parser)]
 #[command(name = built_info::PKG_NAME, about = built_info::PKG_DESCRIPTION, version = built_info::PKG_VERSION, author = built_info::PKG_AUTHORS)]
 pub struct Cli {
+    #[command(subcommand)]
+    pub command: Option<Command>,
     #[arg(
         default_value = ".",
         help = r#"Specify the file path to repository directory.
@@ -110,36 +110,39 @@ If not specified, the current directory will be used"#,
         required = false
     )]
     pub save: String,
+
+    #[arg(
+        long,
+        help = "Disable the local cache and always request a fresh message from the API",
+        default_value_t = false,
+        required = false
+    )]
+    pub no_cache: bool,
+
+    #[arg(
+        long,
+        help = "Clear the local cache for the current repository and exit",
+        default_value_t = false,
+        required = false
+    )]
+    pub clear_cache: bool,
 }
 
-pub fn print_table(title: &str, content: &str) {
-    let mut binding =
-        tabled::builder::Builder::from_iter([["Title", title.trim()], ["Content", content.trim()]])
-            .build();
-    let table = binding
-        .with(tabled::settings::Style::rounded())
-        .with(tabled::settings::Width::wrap(120))
-        .with(tabled::settings::Alignment::left());
-
-    println!("{}", table);
+#[derive(Debug, Subcommand)]
+pub enum Command {
+    #[command(
+        name = "install-hook",
+        about = "Install git hook script into the specified repository directory"
+    )]
+    InstallHook {
+        #[arg(
+            default_value = ".",
+            help = "Repository directory to install the git hook into",
+            required = false
+        )]
+        repo_path: String,
+    },
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_print_table() {
-        const TITLE: &str = r#"feat: bump version to 1.4.0 and update system template 🚀"#;
-        const CONTENT: &str = r#"
-- Update version from 1.3.3 to 1.4.0 in Cargo.toml
-- Enhance system template with additional instructions
-- Simplify and clarify template content for better usability
-- Remove redundant information to streamline template
-- Ensure template aligns with latest commit message standards
-
-Signed-off-by: mingcheng <mingcheng@apache.org>
-        "#;
-        print_table(TITLE, CONTENT);
-    }
-}
+mod tests {}

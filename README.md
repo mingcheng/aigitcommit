@@ -1,11 +1,12 @@
 # AIGitCommit
 
-[![Cargo Build & Test](https://github.com/mingcheng/aigitcommit/actions/workflows/rust.yml/badge.svg?branch=main)](https://github.com/mingcheng/aigitcommit/actions/workflows/rust.yml)
+[![Cargo Build & Test](https://github.com/mingcheng/aigitcommit/actions/workflows/cargo.yml/badge.svg?branch=main)](https://github.com/mingcheng/aigitcommit/actions)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/11285/badge)](https://www.bestpractices.dev/projects/11285)
+[![Crates.io](https://img.shields.io/crates/v/aigitcommit.svg)](https://crates.io/crates/aigitcommit)
 
 ![screenshots](./assets/screenshots.png)
 
-`AIGitCommit` is a command-line tool that generates meaningful, semantic commit messages from your staged Git changes using AI. 
+`AIGitCommit` is a command-line tool that generates meaningful, semantic commit messages from your staged Git changes using AI.
 
 It inspects your diffs, summarizes the intent of your changes, and produces clear, concise commit messages that follow the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) specification.
 
@@ -13,45 +14,77 @@ It inspects your diffs, summarizes the intent of your changes, and produces clea
 
 ## References
 
-- https://www.conventionalcommits.org/en/v1.0.0/
-- https://nitayneeman.com/blog/understanding-semantic-commit-messages-using-git-and-angular/
-- https://ssshooter.com/2020-09-30-commit-message/
+- [Conventional Commits Specification](https://www.conventionalcommits.org/en/v1.0.0/)
+- [Understanding Semantic Commit Messages](https://nitayneeman.com/blog/understanding-semantic-commit-messages-using-git-and-angular/)
+- [Commit Message Best Practices](https://ssshooter.com/2020-09-30-commit-message/)
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit issues, feature requests, or pull requests on [GitHub](https://github.com/mingcheng/aigitcommit).
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
 ## Features
 
-- Generates meaningful, semantic commit messages from staged changes.
-- Commit directly to the repository with the `--commit` flag or copy the generated message with `--copy`.
-- Output formats: human-readable text, JSON (machine-readable) and table view. JSON output is useful for CI integrations and automation; table view makes it easy to scan multiple suggested lines.
-- Easy-to-use command-line interface with sensible defaults and confirm prompts (can be skipped with `--yes`).
-- Uses libgit2 via the `git2` crate, avoiding external git commands for improved security and performance.
-- Supports multiple OpenAI-compatible models and configurable API base, token, and proxy settings.
-- Optional auto sign-off of commits when `GIT_AUTO_SIGNOFF=true`.
-- Proxy support: HTTP and SOCKS5 (set via `OPENAI_API_PROXY`).
+- **AI-Powered Commit Messages**: Automatically generates meaningful, semantic commit messages from staged Git changes
+- **Conventional Commits**: Follows the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) specification for consistent, structured messages
+- **Multiple Output Formats**:
+  - Human-readable table view (default)
+  - JSON format for CI/CD integration and automation
+  - Plain text output
+- **Flexible Workflow**:
+  - Direct commit with `--commit` flag
+  - Copy to clipboard with `--copy-to-clipboard`
+  - Git hook integration for automatic message generation
+- **Interactive & Non-Interactive**: Confirmation prompts by default, skip with `--yes` for scripting
+- **Security & Performance**: Uses libgit2 via the `git2` crate, avoiding external git command execution
+- **Multi-Provider Support**: Compatible with OpenAI and other OpenAI-compatible APIs (Azure OpenAI, local models, etc.)
+- **Flexible Configuration**:
+  - Environment variables for API settings
+  - Git config for repository-specific or global settings
+  - Configurable API base URL, token, proxy, and timeouts
+- **Sign-off Support**: Auto sign-off via `AIGITCOMMIT_SIGNOFF` environment variable or `git config aigitcommit.signoff`
+- **Local Response Cache**: Reuses previous results when nothing has changed, avoiding redundant API calls
+- **Proxy Support**: HTTP and SOCKS5 proxies via `OPENAI_API_PROXY`
 
 
 ## How It Works
 
-AIGitCommit inspects your staged Git changes, summarizes the intent of those changes, and generates clear semantic commit messages. It examines diffs and uses an AI model to infer intent and produce concise, useful commit lines.
+AIGitCommit streamlines your commit workflow by:
 
-## Install
+1. **Analyzing Changes**: Inspects staged changes using `git diff --cached`
+2. **Understanding Context**: Examines recent commit history for stylistic consistency
+3. **AI Generation**: Sends diffs to an OpenAI-compatible model with carefully crafted prompts
+4. **Structured Output**: Generates commit messages following Conventional Commits specification
+5. **User Review**: Presents the message for review and optional editing
 
-AIGitCommit is still in the early stages of development, I suggest you to install it using the git URL using the commands below:
+The tool uses libgit2 for secure, efficient Git operations without spawning external processes. It automatically filters out common noise files (lock files, generated code) to focus on meaningful changes.
 
-```
-cargo install --git https://github.com/mingcheng/aigitcommit.git
-```
+## Installation
 
-or, You can install from [crates.io](https://crates.io/crates/aigitcommit)
+### From crates.io (Recommended)
 
-```
+```bash
 cargo install aigitcommit
 ```
 
-Those command will auto-download the latest version of the project and install it to your cargo bin directory.
+### From Source
 
-### Docker image
+For the latest development version:
 
-AIGitCommit can run in Docker if you prefer not to install the binary locally. Example (read-only repository):
+```bash
+cargo install --git https://github.com/mingcheng/aigitcommit.git
+```
+
+Both commands will download, compile, and install the binary to your Cargo bin directory (typically `~/.cargo/bin`). Ensure this directory is in your `PATH`.
+
+### Docker Image
+
+Run AIGitCommit in Docker without installing the binary locally.
+
+**Read-only mode** (generate message only):
 
 ```bash
 docker run \
@@ -64,7 +97,7 @@ docker run \
   ghcr.io/mingcheng/aigitcommit
 ```
 
-If you want to use `--commit` from inside the container, mount the repo as writable and run interactively:
+**Interactive mode** (with `--commit` flag):
 
 ```bash
 docker run \
@@ -75,70 +108,223 @@ docker run \
   -e OPENAI_API_TOKEN='<api token>' \
   -e OPENAI_MODEL_NAME='<model name>' \
   -e OPENAI_API_PROXY='<proxy if needed>' \
-  ghcr.io/mingcheng/aigitcommit --commit
+  ghcr.io/mingcheng/aigitcommit --commit --yes
 ```
 
-Use `--yes` to skip interactive confirmations.
+Note: Use `--yes` to skip interactive confirmations in non-TTY environments.
 
-### Git hook
+### Git Hook
 
-AIGitCommit ships a `hooks/prepare-commit-msg` hook you can copy into a repository's `.git/hooks/prepare-commit-msg` to automatically generate commit messages during `git commit`.
+AIGitCommit includes a `prepare-commit-msg` hook that automatically generates commit messages during your workflow.
 
-To install globally:
+**Quick install (recommended)**
+
+Install into the current repository:
 
 ```bash
-mkdir -p ~/.git-hooks
-# copy the file from this project into ~/.git-hooks/prepare-commit-msg
-chmod +x ~/.git-hooks/prepare-commit-msg
-git config --global core.hooksPath ~/.git-hooks
+aigitcommit install-hook .
 ```
 
-After installing the hook, `git commit` will run the hook and populate the commit message. Use `--no-verify` to bypass hooks when necessary.
+Install into a specific repository:
+
+```bash
+aigitcommit install-hook /path/to/repo
+```
+
+Prerequisite: `aigitcommit` is installed and available in your `PATH`.
+
+**Prerequisites**
+
+- `aigitcommit` must be installed and available in your `PATH`
+- Configure required environment variables before committing (see [Configuration](#configuration))
+
+**Manual install (alternative)**
+
+```bash
+cp hooks/prepare-commit-msg .git/hooks/prepare-commit-msg
+chmod +x .git/hooks/prepare-commit-msg
+```
+
+**Disable for a single commit**: Use `git commit --no-verify` to bypass the hook.
+
+**Global installation (optional)**
+
+Use Git templates so new repos have the hook:
+
+```bash
+mkdir -p ~/.git-template/hooks
+cp hooks/prepare-commit-msg ~/.git-template/hooks/prepare-commit-msg
+chmod +x ~/.git-template/hooks/prepare-commit-msg
+git config --global init.templateDir ~/.git-template
+```
+
+Apply to an existing repo (either copy the file or re-init):
+
+```bash
+cp ~/.git-template/hooks/prepare-commit-msg <repo>/.git/hooks/
+# or
+cd <repo> && git init
+```
+
+**Hook behavior (summary)**
+
+- Triggers on `git commit` with no message or with `-m ""`.
+- Skips merge/rebase/cherry-pick and commits with an existing message.
+
+**Troubleshooting**
+
+- **"No staged changes detected"**: Run `git add` to stage your changes before committing
+- **"aigitcommit is not installed"**: Ensure the binary is in your `PATH` or install it first
+- **Missing configuration error**: Export required environment variables (`OPENAI_API_TOKEN`, etc.) in your shell
+- **Hook output too verbose**: Redirect stderr in your Git configuration: `git config core.hookStderr false`
 
 ## Configuration
 
-Before using AIGitCommit, export the following environment variables (for example in your shell profile):
+### Environment Variables
 
-- `OPENAI_API_TOKEN`: Your OpenAI-compatible API token.
-- `OPENAI_API_BASE`: The API base URL (useful for alternative providers or local proxies).
-- `OPENAI_MODEL_NAME`: The model name to query (e.g., a GPT-compatible model).
-- `OPENAI_API_PROXY`: Optional. Proxy address for network access (e.g., `http://127.0.0.1:1080` or `socks://127.0.0.1:1086`).
-- `GIT_AUTO_SIGNOFF`: Optional. Set to `true` to append a Signed-off-by line to commits.
+Configure AIGitCommit by setting these environment variables (in your shell profile, `.bashrc`, `.zshrc`, etc.):
 
-### Check the configuration
+**Required:**
+- `OPENAI_API_TOKEN`: Your OpenAI-compatible API authentication token
+- `OPENAI_API_BASE`: API endpoint URL (e.g., `https://api.openai.com/v1` or your provider's URL)
+- `OPENAI_MODEL_NAME`: Model identifier (e.g., `gpt-4`, `gpt-3.5-turbo`, or provider-specific models)
 
-After setting the environment variables, you can check if they are set correctly by running:
+**Optional:**
+- `OPENAI_API_PROXY`: HTTP/SOCKS5 proxy URL (e.g., `http://127.0.0.1:1080`, `socks5://127.0.0.1:1086`)
+- `OPENAI_API_TIMEOUT`: Request timeout in seconds (default: 30)
+- `OPENAI_API_MAX_TOKENS`: Maximum tokens in response (default: model-specific)
+- `AIGITCOMMIT_SIGNOFF`: Enable auto sign-off (`true`, `1`, `yes`, `on`)
+
+**Example configuration:**
 
 ```bash
+# ~/.bashrc or ~/.zshrc
+export OPENAI_API_TOKEN="sk-..."
+export OPENAI_API_BASE="https://api.openai.com/v1"
+export OPENAI_MODEL_NAME="gpt-4"
+export OPENAI_API_PROXY="http://127.0.0.1:1080"  # Optional
+export AIGITCOMMIT_SIGNOFF="true"                # Optional
+```
+
+### Git Configuration
+
+You can also enable sign-off via Git configuration (takes precedence over environment variables):
+
+```bash
+# Repository-specific
+git config aigitcommit.signoff true
+
+# Global (all repositories)
+git config --global aigitcommit.signoff true
+```
+
+### Verify Configuration
+
+Check your environment setup:
+
+```bash
+# Verify all environment variables
 aigitcommit --check-env
-```
 
-This will print the current configuration and verify that the required variables are set. 
-
-Then you can run 
-
-```bash
+# Test API connectivity and model availability
 aigitcommit --check-model
+
+# Show all available options
+aigitcommit --help
 ```
-
-to check if the specified model is available and can be queried successfully.
-
-You can also run `aigitcommit --help` to see the available options and usage instructions.
 
 ## Usage
 
-Run `aigitcommit` in a repository with staged changes. Optionally provide a path to the git directory: `aigitcommit <dir>`.
+### Basic Usage
 
-Common flags:
+Run AIGitCommit in a Git repository with staged changes:
 
-1. `--commit` commit generated message directly to the repository.
-2. `--copy-to-clipboard` copy the generated message to the clipboard.
-3. `--json` print the suggestions as JSON for CI or automation.
-4. `--yes` skip confirmation prompts and apply the default action.
-5. `--signoff` append a Signed-off-by line to the commit message.
+```bash
+# In the current repository
+aigitcommit
 
-See `aigitcommit --help` for the full list of options.
+# Specify a different repository path
+aigitcommit /path/to/repo
+```
 
+The tool will:
+1. Analyze your staged changes (`git diff --cached`)
+2. Generate a Conventional Commit message using AI
+3. Display the result in table format (default)
+
+### Command-Line Options
+
+**Output Formats:**
+- Default: Table view (easy to read)
+- `--json`: JSON output (for CI/automation)
+- `--no-table`: Plain text output
+
+**Actions:**
+- `--commit`: Automatically commit with the generated message
+- `--copy-to-clipboard`: Copy the message to clipboard
+- `--yes`: Skip confirmation prompts (useful for scripting)
+- `--signoff`: Append `Signed-off-by` line to the commit
+- `--save <file>`: Save the generated commit message to the given file
+
+**Cache:**
+- `--no-cache`: Bypass the local cache for this run
+- `--clear-cache`: Remove cached entries for the current repository and exit
+
+**Diagnostics:**
+- `--check-env`: Verify environment variable configuration
+- `--check-model`: Test API connectivity and model availability
+- `--help`: Show all available options
+
+### Examples
+
+**Generate and review message:**
+```bash
+aigitcommit
+```
+
+**Auto-commit without confirmation:**
+```bash
+aigitcommit --commit --yes
+```
+
+**Copy message to clipboard:**
+```bash
+aigitcommit --copy-to-clipboard
+```
+
+**JSON output for CI pipelines:**
+```bash
+aigitcommit --json | jq '.title'
+```
+
+**Commit with sign-off:**
+```bash
+aigitcommit --commit --signoff
+```
+
+### Local Cache
+
+Responses are cached under `<repo>/.git/aigitcommit-cache/` and keyed by the
+staged diff, recent commit logs, model and prompt. Any change to those inputs
+invalidates the entry automatically. Use `--no-cache` to bypass it for a single
+run, or `--clear-cache` to wipe it.
+
+### Workflow Integration
+
+**Typical workflow:**
+```bash
+# Stage your changes
+git add .
+
+# Generate and review commit message
+aigitcommit
+
+# Or commit directly
+aigitcommit --commit
+
+# Or use the Git hook (if installed)
+git commit  # Hook generates message automatically
+```
 
 ## License
 

@@ -5,7 +5,7 @@ on:
     branches:
       - main
     tags:
-      - "v*.*.*" # Match version tags like v1.2.3
+      - "v*.*.*"
   pull_request:
     branches:
       - main
@@ -26,7 +26,7 @@ jobs:
       id-token: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
