@@ -192,8 +192,8 @@ mod tests {
 
     #[test]
     fn clear_removes_entries_and_returns_count() {
-        let tmp = std::env::temp_dir()
-            .join(format!("aigitcommit-cache-clear-{}", std::process::id()));
+        let tmp =
+            std::env::temp_dir().join(format!("aigitcommit-cache-clear-{}", std::process::id()));
         let _ = fs::remove_dir_all(&tmp);
         let cache = Cache::new(&tmp);
         cache.put("a", "1");

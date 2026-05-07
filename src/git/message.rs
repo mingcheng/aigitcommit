@@ -13,6 +13,7 @@
  */
 
 use crate::git::repository::Repository;
+use std::fmt::Write as _;
 use std::{error::Error, fmt::Display};
 use tracing::trace;
 
@@ -71,12 +72,13 @@ impl GitMessage {
         if signoff {
             trace!("adding Signed-off-by line to commit message");
             let author = repository.get_author()?;
-
-            // Ensure proper spacing before signoff
-            final_content.push_str(&format!(
+            // Writing into the existing String avoids the intermediate alloc
+            // that `format!` + `push_str` would create.
+            write!(
+                final_content,
                 "\n\nSigned-off-by: {} <{}>",
                 author.name, author.email
-            ));
+            )?;
         }
 
         trace!("created commit message with title: {}", title_trimmed);

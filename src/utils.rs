@@ -18,39 +18,45 @@ use std::fs;
 use std::io::Write;
 use tracing::trace;
 
-/// Generic result type for utility functions
+/// Convenience alias for fallible utility functions in this crate.
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-/// Get environment variable with default value fallback
+/// Environment variables surfaced by `--check-env`.
+const CHECKED_ENV_VARS: &[&str] = &[
+    "OPENAI_API_BASE",
+    "OPENAI_API_TOKEN",
+    "OPENAI_MODEL_NAME",
+    "OPENAI_API_PROXY",
+    "OPENAI_API_TIMEOUT",
+    "AIGITCOMMIT_SIGNOFF",
+];
+
+/// Environment variable helpers.
 pub mod env {
     use std::env;
 
     use tracing::{debug, warn};
 
-    /// Get environment variable with default value fallback
+    /// Read an environment variable, returning `default` when unset.
     pub fn get(key: &str, default: &str) -> String {
         env::var(key).unwrap_or_else(|_| default.to_string())
     }
 
-    /// Parse boolean environment variable
-    /// Accepts "1", "true", "yes", "on" (case-insensitive) as true
+    /// Read a boolean environment variable.
+    /// Accepts `1`, `true`, `yes`, `on` (case-insensitive) as true.
     pub fn get_bool(key: &str) -> bool {
-        env::var(key)
-            .map(|v| {
-                v == "1"
-                    || v.eq_ignore_ascii_case("true")
-                    || v.eq_ignore_ascii_case("yes")
-                    || v.eq_ignore_ascii_case("on")
-            })
-            .unwrap_or(false)
+        const TRUTHY: [&str; 4] = ["1", "true", "yes", "on"];
+        match env::var(key) {
+            Ok(v) => TRUTHY.iter().any(|t| v.eq_ignore_ascii_case(t)),
+            Err(_) => false,
+        }
     }
 
-    /// Check and print environment variable value
+    /// Log whether `var_name` is set, returning the result.
     pub fn exists(var_name: &str) -> bool {
         match env::var(var_name) {
             Ok(value) => {
                 debug!("{} is set to {}", var_name, value);
-                // println!("{:20}\t{}", var_name, value);
                 true
             }
             Err(_) => {
@@ -61,13 +67,13 @@ pub mod env {
     }
 }
 
-/// Check if commit should be signed off
-/// Returns true if either CLI flag is set or repository/git config/env enable sign-off
+/// Should the commit be signed off?
+/// True when the CLI flag is set, or when the repository / env opts in.
 pub fn should_signoff(repository: &Repository, cli_signoff: bool) -> bool {
     cli_signoff || repository.should_signoff()
 }
 
-/// Output format for commit messages
+/// Output format for commit messages.
 #[derive(Debug, PartialEq, Eq)]
 pub enum OutputFormat {
     Stdout,
@@ -76,72 +82,50 @@ pub enum OutputFormat {
 }
 
 impl OutputFormat {
-    /// Detect output format from CLI flags
+    /// Pick a format from CLI flags. `--json` wins over `--no-table`.
     pub fn detect(json: bool, no_table: bool) -> Self {
-        if json {
-            Self::Json
-        } else if no_table {
-            Self::Stdout
-        } else {
-            Self::Table
+        match (json, no_table) {
+            (true, _) => Self::Json,
+            (false, true) => Self::Stdout,
+            (false, false) => Self::Table,
         }
     }
 
-    /// Write the message in the specified format
+    /// Render `message` to stdout in the selected format.
     pub fn write(&self, message: &GitMessage) -> Result<()> {
+        let mut out = std::io::stdout().lock();
         match self {
-            Self::Stdout => {
-                writeln!(std::io::stdout(), "{}", message)?;
-            }
-            Self::Json => {
-                let json = serde_json::to_string_pretty(message)?;
-                writeln!(std::io::stdout(), "{}", json)?;
-            }
-            Self::Table => {
-                print_table(&message.title, &message.content);
-            }
+            Self::Stdout => writeln!(out, "{message}")?,
+            Self::Json => writeln!(out, "{}", serde_json::to_string_pretty(message)?)?,
+            Self::Table => print_table(&message.title, &message.content),
         }
         Ok(())
     }
 }
 
-/// Print the commit message in a table format
-pub fn print_table(title: &str, content: &str) {
-    let mut binding =
+/// Print the commit message in a rounded, wrapped table.
+fn print_table(title: &str, content: &str) {
+    let table =
         tabled::builder::Builder::from_iter([["Title", title.trim()], ["Content", content.trim()]])
-            .build();
-    let table = binding
-        .with(tabled::settings::Style::rounded())
-        .with(tabled::settings::Width::wrap(120))
-        .with(tabled::settings::Alignment::left());
+            .build()
+            .with(tabled::settings::Style::rounded())
+            .with(tabled::settings::Width::wrap(120))
+            .with(tabled::settings::Alignment::left())
+            .to_string();
 
-    println!("{}", table);
+    println!("{table}");
 }
 
-/// Check and print all relevant environment variables
+/// Log presence/absence of every environment variable consulted by the tool.
 pub fn check_env_variables() {
-    [
-        "OPENAI_API_BASE",
-        "OPENAI_API_TOKEN",
-        "OPENAI_MODEL_NAME",
-        "OPENAI_API_PROXY",
-        "OPENAI_API_TIMEOUT",
-        "AIGITCOMMIT_SIGNOFF",
-    ]
-    .iter()
-    .for_each(|v| {
-        env::exists(v);
-    });
+    for var in CHECKED_ENV_VARS {
+        env::exists(var);
+    }
 }
 
-/// Save content to a file
+/// Save `content` to `path`, truncating any existing file.
 pub fn save_to_file(path: &str, content: &dyn std::fmt::Display) -> Result<()> {
-    use std::fs::File;
-    use std::io::Write;
-
-    let mut file = File::create(path)?;
-    file.write_all(content.to_string().as_bytes())?;
-    file.flush()?;
+    fs::write(path, content.to_string())?;
     Ok(())
 }
 
@@ -167,9 +151,10 @@ pub fn install_hook(path: &str, name: &str, content: &str) -> Result<()> {
     if hook_path.exists() {
         let backup = hooks_dir.join(format!("{name}.bak"));
         if let Err(e) = fs::rename(&hook_path, &backup) {
-            return Err(
-                format!("failed to back up existing hook {hook_path:?} -> {backup:?}: {e}").into(),
-            );
+            return Err(format!(
+                "failed to back up existing hook {hook_path:?} -> {backup:?}: {e}"
+            )
+            .into());
         }
         trace!("backed up existing hook to {:?}", backup);
     }
@@ -254,8 +239,8 @@ Signed-off-by: mingcheng <mingcheng@apache.org>
 
     #[test]
     fn test_save_to_file_roundtrip() {
-        let path = std::env::temp_dir()
-            .join(format!("aigitcommit-save-{}.txt", std::process::id()));
+        let path =
+            std::env::temp_dir().join(format!("aigitcommit-save-{}.txt", std::process::id()));
         let path_str = path.to_string_lossy().into_owned();
         save_to_file(&path_str, &"hello world").unwrap();
         let read = std::fs::read_to_string(&path).unwrap();
@@ -267,8 +252,8 @@ Signed-off-by: mingcheng <mingcheng@apache.org>
     fn test_install_hook() {
         // Use an isolated temp directory containing a fake `.git` so the test
         // does not pollute the workspace's real `.git/hooks/`.
-        let tmp = std::env::temp_dir()
-            .join(format!("aigitcommit-install-hook-{}", std::process::id()));
+        let tmp =
+            std::env::temp_dir().join(format!("aigitcommit-install-hook-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&tmp);
         std::fs::create_dir_all(tmp.join(".git")).unwrap();
 
@@ -298,8 +283,8 @@ Signed-off-by: mingcheng <mingcheng@apache.org>
 
     #[test]
     fn test_install_hook_rejects_non_git_dir() {
-        let tmp = std::env::temp_dir()
-            .join(format!("aigitcommit-not-a-repo-{}", std::process::id()));
+        let tmp =
+            std::env::temp_dir().join(format!("aigitcommit-not-a-repo-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&tmp);
         std::fs::create_dir_all(&tmp).unwrap();
         let result = install_hook(tmp.to_str().unwrap(), "x", "#!/bin/sh\n");
