@@ -14,7 +14,7 @@
 use aigitcommit::built_info::{PKG_NAME, PKG_VERSION};
 use aigitcommit::cache::Cache;
 use aigitcommit::cli::{Cli, Command};
-use aigitcommit::git::message::GitMessage;
+use aigitcommit::git::message::{GitMessage, GitMessageConfig};
 use aigitcommit::git::repository::Repository;
 use aigitcommit::openai::OpenAI;
 use arboard::Clipboard;
@@ -102,7 +102,10 @@ async fn main() -> utils::Result<()> {
         .ok_or("Invalid response format: expected title and content separated by double newline")?;
 
     let need_signoff = should_signoff(&repository, cli.signoff);
-    let message = GitMessage::new(&repository, title, content, need_signoff)?;
+    let message = GitMessage::new(
+        &repository,
+        GitMessageConfig::new(title, content, need_signoff),
+    )?;
 
     OutputFormat::detect(cli.json, cli.no_table).write(&message)?;
 
