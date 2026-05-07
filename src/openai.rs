@@ -20,7 +20,7 @@ use async_openai::error::OpenAIError;
 use async_openai::{
     Client,
     config::OpenAIConfig,
-    types::{ChatCompletionRequestMessage, CreateChatCompletionRequestArgs},
+    types::chat::{ChatCompletionRequestMessage, CreateChatCompletionRequestArgs},
 };
 use log::trace;
 use reqwest::header::{HeaderMap, HeaderValue};

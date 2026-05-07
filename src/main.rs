@@ -18,7 +18,7 @@ use aigitcommit::git::message::GitMessage;
 use aigitcommit::git::repository::Repository;
 use aigitcommit::openai::OpenAI;
 use arboard::Clipboard;
-use async_openai::types::{
+use async_openai::types::chat::{
     ChatCompletionRequestSystemMessageArgs, ChatCompletionRequestUserMessageArgs,
 };
 use clap::Parser;
