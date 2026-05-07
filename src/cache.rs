@@ -16,7 +16,7 @@
  * File Created: 2026-05-07 11:24:15
  *
  * Modified By: mingcheng <mingcheng@apache.org>
- * Last Modified: 2026-05-07 11:31:35
+ * Last Modified: 2026-05-07 11:44:53
  */
 
 use std::error::Error;
@@ -175,7 +175,7 @@ mod tests {
         let k2 = Cache::build_key("gpt-5", "sys", &diffs, &logs);
         assert_eq!(k1, k2);
 
-        let k3 = Cache::build_key("gpt-5", "sys", &diffs, &vec!["other".to_string()]);
+        let k3 = Cache::build_key("gpt-5", "sys", &diffs, &["other".to_string()]);
         assert_ne!(k1, k3);
 
         let k4 = Cache::build_key("gpt-4", "sys", &diffs, &logs);
