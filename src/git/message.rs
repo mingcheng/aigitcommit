@@ -13,6 +13,7 @@
  */
 
 use crate::git::repository::Repository;
+use std::fmt::Write as _;
 use std::{error::Error, fmt::Display};
 use tracing::trace;
 
@@ -71,12 +72,13 @@ impl GitMessage {
         if signoff {
             trace!("adding Signed-off-by line to commit message");
             let author = repository.get_author()?;
-
-            // Ensure proper spacing before signoff
-            final_content.push_str(&format!(
+            // Writing into the existing String avoids the intermediate alloc
+            // that `format!` + `push_str` would create.
+            write!(
+                final_content,
                 "\n\nSigned-off-by: {} <{}>",
                 author.name, author.email
-            ));
+            )?;
         }
 
         trace!("created commit message with title: {}", title_trimmed);
@@ -87,21 +89,51 @@ impl GitMessage {
             content: final_content,
         })
     }
+}
 
-    /// Check if the commit message is empty
-    ///
-    /// Returns true only if both title and content are empty strings
-    pub fn is_empty(&self) -> bool {
-        self.title.is_empty() && self.content.is_empty()
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::env;
+
+    fn setup() -> Option<Repository> {
+        let path = env::var("TEST_REPO_PATH").unwrap_or_else(|_| ".".to_string());
+        Repository::new(&path).ok()
     }
 
-    /// Get the total character count of the commit message
-    pub fn char_count(&self) -> usize {
-        self.title.len() + 2 + self.content.len() // +2 for "\n\n"
+    #[test]
+    fn rejects_empty_title() {
+        let Some(repo) = setup() else { return };
+        let err = GitMessage::new(&repo, "   ", "body", false).unwrap_err();
+        assert!(err.to_string().contains("title"));
     }
 
-    /// Get the number of lines in the commit message
-    pub fn line_count(&self) -> usize {
-        1 + self.content.lines().count() // +1 for title, +blank line is implicit
+    #[test]
+    fn rejects_empty_content() {
+        let Some(repo) = setup() else { return };
+        let err = GitMessage::new(&repo, "title", "   ", false).unwrap_err();
+        assert!(err.to_string().contains("content"));
+    }
+
+    #[test]
+    fn trims_inputs_and_formats_display() {
+        let Some(repo) = setup() else { return };
+        let msg = GitMessage::new(&repo, "  feat: x  ", "  body line  ", false).unwrap();
+        assert_eq!(msg.title, "feat: x");
+        assert_eq!(msg.content, "body line");
+        assert_eq!(format!("{msg}"), "feat: x\n\nbody line");
+    }
+
+    #[test]
+    fn appends_signoff_line_when_requested() {
+        let Some(repo) = setup() else { return };
+        let msg = GitMessage::new(&repo, "feat: x", "body", true).unwrap();
+        assert!(
+            msg.content.contains("Signed-off-by:"),
+            "signoff line missing: {}",
+            msg.content
+        );
+        // Signoff is separated from body by a blank line.
+        assert!(msg.content.contains("\n\nSigned-off-by:"));
     }
 }

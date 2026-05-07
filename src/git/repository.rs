@@ -17,10 +17,26 @@ use regex::Regex;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::path::Path;
+use std::sync::LazyLock;
 use tracing::{trace, warn};
 
 use crate::git::message::GitMessage;
 use crate::utils::env;
+
+/// Files commonly auto-generated or noisy that should be excluded from the
+/// diff sent to the model.
+const EXCLUDED_FILES: &[&str] = &[
+    "go.mod",
+    "go.sum",
+    "Cargo.lock",
+    "package-lock.json",
+    "yarn.lock",
+    "pnpm-lock.yaml",
+];
+
+/// Compiled once: validates a minimally well-formed `local@domain.tld` email.
+static EMAIL_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[^@\s]+@[^@\s]+\.[^@\s]+$").expect("valid email regex"));
 
 /// Author information from git configuration
 pub struct Author {
@@ -50,7 +66,15 @@ impl Repository {
     /// * `Err` - Repository not found or has no working directory (bare repo)
     pub fn new(path: &str) -> Result<Repository, Box<dyn Error>> {
         trace!("opening repository at {path}");
-        let repository = _Repo::open_ext(path, RepositoryOpenFlags::empty(), vec![path])?;
+        // Allow upward discovery from `path` so callers can pass any
+        // subdirectory inside a working tree. `ceiling_dirs` is empty so
+        // discovery walks up to the filesystem root or first `.git`.
+        let no_ceilings: [&str; 0] = [];
+        let repository = _Repo::open_ext(
+            path,
+            RepositoryOpenFlags::empty(),
+            no_ceilings.iter().copied(),
+        )?;
 
         trace!("repository opened successfully");
         if let Some(work_dir) = repository.workdir() {
@@ -150,13 +174,10 @@ impl Repository {
             });
 
         // Validate email format using regex
-        let email = if Regex::new(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
-            .unwrap()
-            .is_match(&email)
-        {
+        let email = if EMAIL_RE.is_match(&email) {
             email
         } else {
-            warn!("invalid email format: {}, using default", UNKNOWN_EMAIL);
+            warn!("invalid email format: {}, using default", email);
             env::get("GIT_FALLBACK_EMAIL", UNKNOWN_EMAIL)
         };
 
@@ -183,10 +204,10 @@ impl Repository {
         Ok(Author { name, email })
     }
 
-    /// Get the diff of the staged changes (index vs HEAD)
+    /// Get the diff of staged changes (index vs HEAD).
     ///
-    /// Returns the patch format diff, excluding certain lock files.
-    /// Filters out: go.mod, go.sum, Cargo.lock, package-lock.json, yarn.lock, pnpm-lock.yaml
+    /// Lock files and other generated noise listed in [`EXCLUDED_FILES`] are
+    /// stripped so they don't dominate the prompt.
     ///
     /// # Returns
     /// * `Ok(Vec<String>)` - Lines of the diff in patch format
@@ -220,22 +241,18 @@ impl Repository {
             Some(&mut diffopts),
         )?;
 
-        let excluded_files = Self::get_excluded_files();
         let mut result = Vec::new();
 
         diff.print(git2::DiffFormat::Patch, |delta, _hunk, line| {
-            // Check if the file should be excluded
-            let should_exclude = delta
+            // Skip excluded files entirely.
+            if let Some(name) = delta
                 .new_file()
                 .path()
                 .and_then(|p| p.file_name())
-                .map(|f| excluded_files.contains(&f.to_string_lossy().as_ref()))
-                .unwrap_or(false);
-
-            if should_exclude {
-                if let Some(filename) = delta.new_file().path().and_then(|p| p.file_name()) {
-                    warn!("skipping excluded file: {}", filename.to_string_lossy());
-                }
+                .map(|f| f.to_string_lossy().into_owned())
+                && EXCLUDED_FILES.contains(&name.as_str())
+            {
+                warn!("skipping excluded file: {name}");
                 return true;
             }
 
@@ -253,32 +270,24 @@ impl Repository {
 
     /// Check if commit should be signed off
     /// Returns true when git config `aigitcommit.signoff` is enabled or the
-    /// `AIGITCOMMIT_SIGNOFF` environment variable evaluates to true
+    /// `AIGITCOMMIT_SIGNOFF` environment variable evaluates to true.
+    ///
+    /// The env variable is consulted whenever the config key is missing or
+    /// not set to true, so users can opt in globally without touching git
+    /// config in every repository.
     pub fn should_signoff(&self) -> bool {
         // Define the config key for signoff
         const SIGNOFF_KEY: &str = "aigitcommit.signoff";
 
-        // Check git config first
-        if let Ok(config) = self.repository.config() {
-            let signoff = config.get_bool(SIGNOFF_KEY).unwrap_or(false);
-            trace!("✍️ git config signoff: {}", signoff);
-            return signoff;
-        }
+        let from_config = self
+            .repository
+            .config()
+            .ok()
+            .and_then(|c| c.get_bool(SIGNOFF_KEY).ok())
+            .unwrap_or(false);
+        trace!("✍️ git config signoff: {}", from_config);
 
-        // Fall back to environment variable
-        env::get_bool("AIGITCOMMIT_SIGNOFF")
-    }
-
-    /// Get the list of filenames to exclude from diffs
-    fn get_excluded_files() -> Vec<&'static str> {
-        vec![
-            "go.mod",
-            "go.sum",
-            "Cargo.lock",
-            "package-lock.json",
-            "yarn.lock",
-            "pnpm-lock.yaml",
-        ]
+        from_config || env::get_bool("AIGITCOMMIT_SIGNOFF")
     }
 
     /// Get the latest `size` commit messages from the repository

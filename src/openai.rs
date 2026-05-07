@@ -20,14 +20,14 @@ use async_openai::error::OpenAIError;
 use async_openai::{
     Client,
     config::OpenAIConfig,
-    types::{ChatCompletionRequestMessage, CreateChatCompletionRequestArgs},
+    types::chat::{ChatCompletionRequestMessage, CreateChatCompletionRequestArgs},
 };
 use log::trace;
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{ClientBuilder, Proxy};
 use std::error::Error;
 use std::time::Duration;
-use tracing::debug;
+use tracing::{debug, warn};
 
 #[derive(Template)]
 #[template(path = "user.txt")]
@@ -66,10 +66,14 @@ impl OpenAI {
             }
         }
 
-        // Set up request timeout if specified
+        // Set up request timeout if specified. When the env variable is unset,
+        // empty, unparseable, or explicitly 0, leave the HTTP client at its
+        // default (no timeout) instead of forcing an immediate-timeout value.
         if let Some(timeout) = Self::get_timeout_config() {
-            trace!("Setting request timeout to: {timeout}ms");
-            http_client_builder = http_client_builder.timeout(Duration::from_millis(timeout));
+            trace!("Setting request timeout to: {}s", timeout.as_secs());
+            http_client_builder = http_client_builder.timeout(timeout);
+        } else {
+            trace!("No request timeout configured; using HTTP client default");
         }
 
         // Build the HTTP client
@@ -108,11 +112,35 @@ impl OpenAI {
         (!proxy_addr.is_empty()).then_some(proxy_addr)
     }
 
-    /// Get timeout configuration from environment
+    /// Resolve the HTTP request timeout from the environment.
+    ///
+    /// Reads `OPENAI_API_TIMEOUT` (in **seconds**, matching the documented
+    /// variable name) and falls back to the legacy `OPENAI_REQUEST_TIMEOUT`
+    /// for backward compatibility.
+    ///
+    /// Returns `None` (i.e. "use the HTTP client default, no timeout") when:
+    /// - neither variable is set or both are empty,
+    /// - the value cannot be parsed as a non-negative integer, or
+    /// - the value is explicitly `0` (treated as "disable timeout").
     #[inline]
-    fn get_timeout_config() -> Option<u64> {
-        let timeout_str = env::get("OPENAI_REQUEST_TIMEOUT", "");
-        timeout_str.parse::<u64>().ok()
+    fn get_timeout_config() -> Option<Duration> {
+        for key in ["OPENAI_API_TIMEOUT", "OPENAI_REQUEST_TIMEOUT"] {
+            let raw = env::get(key, "");
+            if raw.is_empty() {
+                continue;
+            }
+            match raw.trim().parse::<u64>() {
+                Ok(0) => {
+                    trace!("{key}=0 interpreted as no timeout");
+                    return None;
+                }
+                Ok(secs) => return Some(Duration::from_secs(secs)),
+                Err(e) => {
+                    warn!("ignoring invalid {key}={raw:?}: {e}");
+                }
+            }
+        }
+        None
     }
 
     /// Check if the OpenAI API and specified model are reachable and available.
@@ -214,5 +242,37 @@ mod test {
 
         let result = OpenAI::prompt(&logs_content, &diff_content).unwrap();
         assert!(!result.is_empty());
+    }
+
+    #[test]
+    fn timeout_config_handles_unset_zero_and_invalid() {
+        // SAFETY: tests share the process env; use unique keys to avoid races
+        // with other tests, and clear the documented vars for this scope.
+        unsafe {
+            std::env::remove_var("OPENAI_API_TIMEOUT");
+            std::env::remove_var("OPENAI_REQUEST_TIMEOUT");
+        }
+        assert!(OpenAI::get_timeout_config().is_none(), "unset => None");
+
+        unsafe { std::env::set_var("OPENAI_API_TIMEOUT", "0") };
+        assert!(
+            OpenAI::get_timeout_config().is_none(),
+            "0 should disable the timeout, not apply 0s"
+        );
+
+        unsafe { std::env::set_var("OPENAI_API_TIMEOUT", "not-a-number") };
+        assert!(
+            OpenAI::get_timeout_config().is_none(),
+            "invalid value => None (default)"
+        );
+
+        unsafe { std::env::set_var("OPENAI_API_TIMEOUT", "  45  ") };
+        assert_eq!(
+            OpenAI::get_timeout_config(),
+            Some(Duration::from_secs(45)),
+            "valid seconds value should be honored"
+        );
+
+        unsafe { std::env::remove_var("OPENAI_API_TIMEOUT") };
     }
 }

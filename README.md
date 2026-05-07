@@ -131,6 +131,10 @@ Install into a specific repository:
 aigitcommit install-hook /path/to/repo
 ```
 
+If a `prepare-commit-msg` hook already exists, it is renamed to
+`prepare-commit-msg.bak` before the new hook is written, so your previous
+hook is preserved (any prior `.bak` is overwritten).
+
 Prerequisite: `aigitcommit` is installed and available in your `PATH`.
 
 **Prerequisites**
@@ -191,8 +195,7 @@ Configure AIGitCommit by setting these environment variables (in your shell prof
 
 **Optional:**
 - `OPENAI_API_PROXY`: HTTP/SOCKS5 proxy URL (e.g., `http://127.0.0.1:1080`, `socks5://127.0.0.1:1086`)
-- `OPENAI_API_TIMEOUT`: Request timeout in seconds (default: 30)
-- `OPENAI_API_MAX_TOKENS`: Maximum tokens in response (default: model-specific)
+- `OPENAI_API_TIMEOUT`: HTTP request timeout in seconds. Unset, empty, invalid, or `0` means "use the HTTP client default (no timeout)"
 - `AIGITCOMMIT_SIGNOFF`: Enable auto sign-off (`true`, `1`, `yes`, `on`)
 
 **Example configuration:**

@@ -191,15 +191,24 @@ mod tests {
     }
 
     #[test]
-    fn put_then_get_roundtrip() {
-        let tmp = std::env::temp_dir().join(format!(
-            "aigitcommit-cache-roundtrip-{}",
-            std::process::id()
-        ));
+    fn clear_removes_entries_and_returns_count() {
+        let tmp =
+            std::env::temp_dir().join(format!("aigitcommit-cache-clear-{}", std::process::id()));
         let _ = fs::remove_dir_all(&tmp);
         let cache = Cache::new(&tmp);
-        cache.put("abc", "title\n\nbody");
-        assert_eq!(cache.get("abc").as_deref(), Some("title\n\nbody"));
-        let _ = cache.clear();
+        cache.put("a", "1");
+        cache.put("b", "2");
+        cache.put("c", "3");
+        let removed = cache.clear().unwrap();
+        assert_eq!(removed, 3);
+        // Subsequent clear on a non-existent dir is a no-op.
+        assert_eq!(cache.clear().unwrap(), 0);
+    }
+
+    #[test]
+    fn build_key_format_is_16_hex_chars() {
+        let k = Cache::build_key("m", "s", &[], &[]);
+        assert_eq!(k.len(), 16);
+        assert!(k.chars().all(|c| c.is_ascii_hexdigit()));
     }
 }
