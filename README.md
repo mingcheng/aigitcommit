@@ -46,6 +46,7 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
   - Git config for repository-specific or global settings
   - Configurable API base URL, token, proxy, and timeouts
 - **Sign-off Support**: Auto sign-off via `AIGITCOMMIT_SIGNOFF` environment variable or `git config aigitcommit.signoff`
+- **Local Response Cache**: Reuses previous results when nothing has changed, avoiding redundant API calls
 - **Proxy Support**: HTTP and SOCKS5 proxies via `OPENAI_API_PROXY`
 
 
@@ -263,6 +264,11 @@ The tool will:
 - `--copy-to-clipboard`: Copy the message to clipboard
 - `--yes`: Skip confirmation prompts (useful for scripting)
 - `--signoff`: Append `Signed-off-by` line to the commit
+- `--save <file>`: Save the generated commit message to the given file
+
+**Cache:**
+- `--no-cache`: Bypass the local cache for this run
+- `--clear-cache`: Remove cached entries for the current repository and exit
 
 **Diagnostics:**
 - `--check-env`: Verify environment variable configuration
@@ -295,6 +301,13 @@ aigitcommit --json | jq '.title'
 ```bash
 aigitcommit --commit --signoff
 ```
+
+### Local Cache
+
+Responses are cached under `<repo>/.git/aigitcommit-cache/` and keyed by the
+staged diff, recent commit logs, model and prompt. Any change to those inputs
+invalidates the entry automatically. Use `--no-cache` to bypass it for a single
+run, or `--clear-cache` to wipe it.
 
 ### Workflow Integration
 

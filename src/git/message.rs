@@ -1,5 +1,5 @@
 /*!
- * Copyright (c) 2025 Hangzhou Guanwaii Technology Co., Ltd.
+ * Copyright (c) 2025-2026 mingcheng <mingcheng@apache.org>
  *
  * This source code is licensed under the MIT License,
  * which is located in the LICENSE file in the source tree's root directory.
@@ -9,7 +9,7 @@
  * File Created: 2025-10-16 15:06:58
  *
  * Modified By: mingcheng <mingcheng@apache.org>
- * Last Modified: 2025-10-17 18:22:55
+ * Last Modified: 2026-05-07 11:30:55
  */
 
 use crate::git::repository::Repository;
