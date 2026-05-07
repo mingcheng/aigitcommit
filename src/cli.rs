@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Hangzhou Guanwaii Technology Co,.Ltd.
+ * Copyright (c) 2025-2026 mingcheng <mingcheng@apache.org>
  *
  * This source code is licensed under the MIT License,
  * which is located in the LICENSE file in the source tree's root directory.
@@ -110,6 +110,22 @@ If not specified, the current directory will be used"#,
         required = false
     )]
     pub save: String,
+
+    #[arg(
+        long,
+        help = "Disable the local cache and always request a fresh message from the API",
+        default_value_t = false,
+        required = false
+    )]
+    pub no_cache: bool,
+
+    #[arg(
+        long,
+        help = "Clear the local cache for the current repository and exit",
+        default_value_t = false,
+        required = false
+    )]
+    pub clear_cache: bool,
 }
 
 #[derive(Debug, Subcommand)]

@@ -1,5 +1,5 @@
 /*!
- * Copyright (c) 2025 Hangzhou Guanwaii Technology Co., Ltd.
+ * Copyright (c) 2025-2026 mingcheng <mingcheng@apache.org>
  *
  * This source code is licensed under the MIT License,
  * which is located in the LICENSE file in the source tree's root directory.
@@ -9,13 +9,14 @@
  * File Created: 2025-10-16 15:07:05
  *
  * Modified By: mingcheng <mingcheng@apache.org>
- * Last Modified: 2025-11-10 11:21:06
+ * Last Modified: 2026-05-07 11:30:38
  */
 
 use git2::{Oid, Repository as _Repo, RepositoryOpenFlags, Signature};
 use regex::Regex;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
+use std::path::Path;
 use tracing::{trace, warn};
 
 use crate::git::message::GitMessage;
@@ -61,6 +62,13 @@ impl Repository {
         }
 
         Ok(Repository { repository })
+    }
+
+    /// Get the path to the underlying `.git` directory.
+    ///
+    /// Useful for storing repository-scoped state (e.g. local caches).
+    pub fn git_dir(&self) -> &Path {
+        self.repository.path()
     }
 
     /// Commit the staged changes in the repository

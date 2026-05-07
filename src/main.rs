@@ -1,18 +1,18 @@
 /*!
- * Copyright (c) 2025 Hangzhou Guanwaii Technology Co., Ltd.
+ * Copyright (c) 2026 mingcheng <mingcheng@apache.org>
  *
  * This source code is licensed under the MIT License,
  * which is located in the LICENSE file in the source tree's root directory.
  *
- * File: main.rs
  * Author: mingcheng <mingcheng@apache.org>
  * File Created: 2025-03-01 17:17:30
  *
  * Modified By: mingcheng <mingcheng@apache.org>
- * Last Modified: 2025-11-07 14:29:29
+ * Last Modified: 2026-05-07 11:39:56
  */
 
 use aigitcommit::built_info::{PKG_NAME, PKG_VERSION};
+use aigitcommit::cache::Cache;
 use aigitcommit::cli::{Cli, Command};
 use aigitcommit::git::message::GitMessage;
 use aigitcommit::git::repository::Repository;
@@ -94,6 +94,21 @@ async fn main() -> utils::Result<()> {
             .ok_or("invalid UTF-8 in repository path")?,
     )?;
 
+    // Initialize the local cache rooted under the repository's .git directory
+    let cache = Cache::new(repository.git_dir());
+
+    // Handle --clear-cache early: wipe the cache and exit before doing any work
+    if cli.clear_cache {
+        match cache.clear() {
+            Ok(n) => {
+                info!("cleared {} cache entries", n);
+                writeln!(std::io::stdout(), "cleared {n} cache entries.")?;
+            }
+            Err(e) => return Err(format!("failed to clear cache: {e}").into()),
+        }
+        return Ok(());
+    }
+
     // Get the diff and logs from the repository
     let diffs = repository.get_diff()?;
     debug!("got diff size is {}", diffs.len());
@@ -112,23 +127,25 @@ async fn main() -> utils::Result<()> {
         return Err("no commit history found in the repository".into());
     }
 
-    // Generate the prompt which will be sent to OpenAI API
-    let content = OpenAI::prompt(&logs, &diffs)?;
+    // Compute a stable cache key from the inputs that influence the API request.
+    // When nothing has changed (same diff, same recent logs, same model & prompt)
+    // we can reuse the previously generated message and skip the API call.
+    let cache_key = Cache::build_key(&model_name, SYSTEM_PROMPT, &diffs, &logs);
+    debug!("cache key: {}", cache_key);
 
-    // Build the chat completion request messages
-    let messages = vec![
-        ChatCompletionRequestSystemMessageArgs::default()
-            .content(SYSTEM_PROMPT)
-            .build()?
-            .into(),
-        ChatCompletionRequestUserMessageArgs::default()
-            .content(content)
-            .build()?
-            .into(),
-    ];
-
-    // Send the request to OpenAI API and get the response
-    let result = client.chat(&model_name, messages).await?;
+    let result = if !cli.no_cache {
+        if let Some(cached) = cache.get(&cache_key) {
+            info!("reusing cached commit message (key: {})", cache_key);
+            cached
+        } else {
+            let fresh = request_completion(&client, &model_name, &logs, &diffs).await?;
+            cache.put(&cache_key, &fresh);
+            fresh
+        }
+    } else {
+        trace!("--no-cache enabled, skipping cache lookup");
+        request_completion(&client, &model_name, &logs, &diffs).await?
+    };
 
     let (title, content) = result
         .split_once("\n\n")
@@ -216,4 +233,27 @@ async fn check_model_availability(client: &OpenAI, model_name: &str) -> utils::R
         model_name, PKG_NAME
     );
     Ok(())
+}
+
+/// Build the chat request and call the OpenAI API, returning the raw response.
+async fn request_completion(
+    client: &OpenAI,
+    model_name: &str,
+    logs: &[String],
+    diffs: &[String],
+) -> utils::Result<String> {
+    let content = OpenAI::prompt(logs, diffs)?;
+
+    let messages = vec![
+        ChatCompletionRequestSystemMessageArgs::default()
+            .content(SYSTEM_PROMPT)
+            .build()?
+            .into(),
+        ChatCompletionRequestUserMessageArgs::default()
+            .content(content)
+            .build()?
+            .into(),
+    ];
+
+    Ok(client.chat(model_name, messages).await?)
 }
