@@ -1,5 +1,5 @@
 /*!
- * Copyright (c) 2025-2026 mingcheng <mingcheng@apache.org>
+ * Copyright (c) 2026 mingcheng <mingcheng@apache.org>
  *
  * This source code is licensed under the MIT License,
  * which is located in the LICENSE file in the source tree's root directory.
@@ -9,7 +9,7 @@
  * File Created: 2025-10-16 15:07:05
  *
  * Modified By: mingcheng <mingcheng@apache.org>
- * Last Modified: 2026-05-07 11:30:38
+ * Last Modified: 2026-06-16 15:47:00
  */
 
 use git2::{Oid, Repository as _Repo, RepositoryOpenFlags, Signature};
@@ -146,10 +146,65 @@ impl Repository {
         Ok(result)
     }
 
+    /// Resolve a git config value for this repository using the `git` CLI.
+    ///
+    /// libgit2 does not evaluate the newer conditional include forms such as
+    /// `includeIf "hasconfig:remote.*.url:..."`, so a repository relying on
+    /// them would silently inherit the global identity instead of its own.
+    /// Delegating to the `git` binary (scoped to the repository working
+    /// directory) guarantees the resolved value matches exactly what
+    /// `git commit` would use for this specific repository path.
+    ///
+    /// # Returns
+    /// * `Some(String)` - Trimmed, non-empty config value
+    /// * `None` - git unavailable, key unset, or value empty
+    fn git_cli_config(&self, key: &str) -> Option<String> {
+        let workdir = self.repository.workdir()?;
+
+        let output = std::process::Command::new("git")
+            .arg("-C")
+            .arg(workdir)
+            .args(["config", "--get", key])
+            .output()
+            .ok()?;
+
+        if !output.status.success() {
+            return None;
+        }
+
+        let value = String::from_utf8(output.stdout).ok()?;
+        let value = value.trim();
+        if value.is_empty() {
+            None
+        } else {
+            trace!("resolved {key} via git CLI: {value}");
+            Some(value.to_string())
+        }
+    }
+
+    /// Resolve a non-empty config value through the shared fallback chain.
+    ///
+    /// Resolution order:
+    /// 1. The `git` CLI scoped to this repository (honors conditional includes
+    ///    so different repository paths get their own identity).
+    /// 2. libgit2's merged config view (covers environments without `git`).
+    /// 3. The given environment variable.
+    ///
+    /// The returned value is trimmed; empty results yield `None` so the caller
+    /// can apply its own validation and default.
+    fn resolve_identity(&self, config: &git2::Config, key: &str, env_var: &str) -> Option<String> {
+        self.git_cli_config(key)
+            .or_else(|| config.get_string(key).ok())
+            .or_else(|| std::env::var(env_var).ok())
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+    }
+
     /// Get the author email and name from the repository configuration
     ///
-    /// Attempts to read user.name and user.email from git config.
-    /// Falls back to environment variables or defaults if not configured.
+    /// Each value is resolved via [`resolve_identity`](Self::resolve_identity);
+    /// the email is additionally validated against [`EMAIL_RE`]. When a value
+    /// is missing or invalid, a configurable fallback default is used.
     ///
     /// # Returns
     /// * `Ok(Author)` - Author information retrieved successfully
@@ -157,49 +212,23 @@ impl Repository {
     pub fn get_author(&self) -> Result<Author, Box<dyn Error>> {
         let config = self.repository.config()?;
 
-        // Default email if none found
         const UNKNOWN_EMAIL: &str = "unknown@users.noreply.github.com";
         const UNKNOWN_AUTHOR: &str = "Unknown Author";
 
-        // Try to get user.email from config, fall back to environment or default
-        let email = config
-            .get_string("user.email")
-            .or_else(|_| {
-                warn!("user.email not configured in git config");
-                std::env::var("GIT_AUTHOR_EMAIL")
-            })
-            .unwrap_or_else(|_| {
-                warn!("using default email: {}", UNKNOWN_EMAIL);
+        let email = self
+            .resolve_identity(&config, "user.email", "GIT_AUTHOR_EMAIL")
+            .filter(|email| EMAIL_RE.is_match(email))
+            .unwrap_or_else(|| {
+                warn!("user.email missing or invalid, using default: {UNKNOWN_EMAIL}");
                 env::get("GIT_FALLBACK_EMAIL", UNKNOWN_EMAIL)
             });
 
-        // Validate email format using regex
-        let email = if EMAIL_RE.is_match(&email) {
-            email
-        } else {
-            warn!("invalid email format: {}, using default", email);
-            env::get("GIT_FALLBACK_EMAIL", UNKNOWN_EMAIL)
-        };
-
-        // Try to get user.name from config, fall back to environment or default
-        let name = config
-            .get_string("user.name")
-            .or_else(|_| {
-                warn!("user.name not configured in git config");
-                std::env::var("GIT_AUTHOR_NAME")
-            })
-            .unwrap_or_else(|_| {
-                warn!("using default name: Unknown User");
-                "Unknown User".to_string()
+        let name = self
+            .resolve_identity(&config, "user.name", "GIT_AUTHOR_NAME")
+            .unwrap_or_else(|| {
+                warn!("user.name missing or empty, using default: {UNKNOWN_AUTHOR}");
+                env::get("GIT_FALLBACK_NAME", UNKNOWN_AUTHOR)
             });
-
-        // Detect if name is empty or whitespace
-        let name = if name.trim().is_empty() {
-            warn!("author name is empty, using default: Unknown Author");
-            env::get("GIT_FALLBACK_NAME", UNKNOWN_AUTHOR)
-        } else {
-            name
-        };
 
         Ok(Author { name, email })
     }
@@ -334,58 +363,97 @@ impl Repository {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracing::error;
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicU32, Ordering};
 
-    fn setup() -> Result<Repository, Box<dyn Error>> {
-        let repo_path = std::env::var("TEST_REPO_PATH").unwrap_or(".".to_string());
-        Repository::new(&repo_path)
+    /// A throwaway git repository that removes itself on drop.
+    ///
+    /// Each instance lives in a uniquely named temp directory so tests can run
+    /// in parallel without colliding, and is seeded with a *local* identity so
+    /// assertions are independent of the developer's global git config.
+    struct TempRepo {
+        path: PathBuf,
+        repo: Repository,
     }
 
-    #[test]
-    fn test_new() {
-        if setup().is_err() {
-            error!("please specify the repository path");
-            return;
+    impl TempRepo {
+        /// Initialize an empty repo, optionally seeding `user.name` / `user.email`.
+        fn new(name: Option<&str>, email: Option<&str>) -> Self {
+            static COUNTER: AtomicU32 = AtomicU32::new(0);
+            let id = COUNTER.fetch_add(1, Ordering::Relaxed);
+            let path =
+                std::env::temp_dir().join(format!("aigitcommit-test-{}-{id}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&path);
+            std::fs::create_dir_all(&path).expect("create temp dir");
+
+            let raw = _Repo::init(&path).expect("init repo");
+            let mut config = raw.config().expect("open config");
+            if let Some(name) = name {
+                config.set_str("user.name", name).expect("set name");
+            }
+            if let Some(email) = email {
+                config.set_str("user.email", email).expect("set email");
+            }
+            drop(config);
+            drop(raw);
+
+            let repo = Repository::new(path.to_str().unwrap()).expect("open repo");
+            Self { path, repo }
         }
-
-        assert!(setup().is_ok());
     }
 
-    #[test]
-    fn test_get_author() {
-        let repo = setup().unwrap();
-        let author = repo.get_author().unwrap();
-        assert!(!author.name.is_empty());
-        assert!(!author.email.is_empty());
-    }
-
-    #[test]
-    fn test_logs() {
-        let repo = setup();
-        if repo.is_err() {
-            error!("please specify the repository path");
-            return;
+    impl Drop for TempRepo {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.path);
         }
-
-        let logs = repo.unwrap().get_logs(5);
-        assert!(logs.is_ok());
-        // May have fewer than 5 commits if repo is new
-        let log_list = logs.unwrap();
-        assert!(log_list.len() <= 5);
     }
 
-    // #[test]
-    // fn test_diff() {
-    //     let repo = setup();
-    //     if repo.is_err() {
-    //         error!("please specify the repository path");
-    //         return;
-    //     }
+    #[test]
+    fn new_rejects_nonexistent_path() {
+        assert!(Repository::new("/nonexistent/path/should/not/exist").is_err());
+    }
 
-    //     let diffs = repo.unwrap().get_diff();
-    //     assert!(diffs.is_ok());
+    #[test]
+    fn get_author_reads_local_identity() {
+        // Core regression guard: a repository's *own* local config must win,
+        // independent of any global identity or conditional includes.
+        let tmp = TempRepo::new(Some("Local Dev"), Some("local.dev@example.com"));
+        let author = tmp.repo.get_author().unwrap();
+        assert_eq!(author.name, "Local Dev");
+        assert_eq!(author.email, "local.dev@example.com");
+    }
 
-    //     let diff_content = diffs.unwrap();
-    //     assert_ne!(diff_content.len(), 0);
-    // }
+    #[test]
+    fn get_author_falls_back_when_email_invalid() {
+        // A malformed email is rejected and replaced by a valid default.
+        let tmp = TempRepo::new(Some("Local Dev"), Some("not-an-email"));
+        let author = tmp.repo.get_author().unwrap();
+        assert_ne!(author.email, "not-an-email");
+        assert!(EMAIL_RE.is_match(&author.email));
+    }
+
+    #[test]
+    fn git_cli_config_returns_none_for_missing_key() {
+        let tmp = TempRepo::new(None, None);
+        assert!(tmp.repo.git_cli_config("aigitcommit.nonexistent").is_none());
+    }
+
+    #[test]
+    fn resolve_identity_trims_and_filters_empty() {
+        let tmp = TempRepo::new(None, None);
+        let mut config = tmp.repo.repository.config().unwrap();
+        config.set_str("user.name", "  Padded Name  ").unwrap();
+
+        let resolved = tmp
+            .repo
+            .resolve_identity(&config, "user.name", "GIT_AUTHOR_NAME");
+        assert_eq!(resolved.as_deref(), Some("Padded Name"));
+    }
+
+    #[test]
+    fn get_logs_errors_on_unborn_branch() {
+        // A repository with no commits has no HEAD to walk from.
+        let tmp = TempRepo::new(Some("Local Dev"), Some("local.dev@example.com"));
+        assert!(tmp.repo.get_logs(5).is_err());
+    }
 }
