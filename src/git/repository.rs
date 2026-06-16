@@ -1,5 +1,5 @@
 /*!
- * Copyright (c) 2026 mingcheng <mingcheng@apache.org>
+ * Copyright (c) 2026 Ming Lyu, aka mingcheng
  *
  * This source code is licensed under the MIT License,
  * which is located in the LICENSE file in the source tree's root directory.
@@ -9,7 +9,7 @@
  * File Created: 2025-10-16 15:07:05
  *
  * Modified By: mingcheng <mingcheng@apache.org>
- * Last Modified: 2026-06-16 15:47:00
+ * Last Modified: 2026-06-16 18:30:04
  */
 
 use git2::{Oid, Repository as _Repo, RepositoryOpenFlags, Signature};
@@ -18,7 +18,7 @@ use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::path::Path;
 use std::sync::LazyLock;
-use tracing::{trace, warn};
+use tracing::{info, trace, warn};
 
 use crate::git::message::GitMessage;
 use crate::utils::env;
@@ -281,7 +281,7 @@ impl Repository {
                 .map(|f| f.to_string_lossy().into_owned())
                 && EXCLUDED_FILES.contains(&name.as_str())
             {
-                warn!("skipping excluded file: {name}");
+                info!("skipping excluded file: {name}");
                 return true;
             }
 
@@ -332,8 +332,18 @@ impl Repository {
     pub fn get_logs(&self, size: usize) -> Result<Vec<String>, Box<dyn Error>> {
         let mut revwalk = self.repository.revwalk()?;
 
-        // Start walking from HEAD
-        revwalk.push_head()?;
+        // Start walking from HEAD. On a brand-new repository there is no
+        // HEAD commit yet (unborn branch); treat that as an empty history
+        // rather than a hard error so the tool still works for the very
+        // first commit.
+        match revwalk.push_head() {
+            Ok(()) => {}
+            Err(e) if e.code() == git2::ErrorCode::UnbornBranch => {
+                trace!("unborn branch: returning empty commit history");
+                return Ok(Vec::new());
+            }
+            Err(e) => return Err(Box::new(e)),
+        }
 
         // Sort by time (newest first) - this is the default but made explicit
         revwalk.set_sorting(git2::Sort::TIME)?;
@@ -348,6 +358,7 @@ impl Repository {
                     .and_then(|commit| {
                         commit
                             .message()
+                            .ok()
                             .map(str::trim)
                             .filter(|msg| !msg.is_empty())
                             .map(String::from)
