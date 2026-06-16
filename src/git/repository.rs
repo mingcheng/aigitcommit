@@ -146,10 +146,50 @@ impl Repository {
         Ok(result)
     }
 
+    /// Resolve a git config value for this repository using the `git` CLI.
+    ///
+    /// libgit2 does not evaluate the newer conditional include forms such as
+    /// `includeIf "hasconfig:remote.*.url:..."`, so a repository relying on
+    /// them would silently inherit the global identity instead of its own.
+    /// Delegating to the `git` binary (scoped to the repository working
+    /// directory) guarantees the resolved value matches exactly what
+    /// `git commit` would use for this specific repository path.
+    ///
+    /// # Returns
+    /// * `Some(String)` - Trimmed, non-empty config value
+    /// * `None` - git unavailable, key unset, or value empty
+    fn git_cli_config(&self, key: &str) -> Option<String> {
+        let workdir = self.repository.workdir()?;
+
+        let output = std::process::Command::new("git")
+            .arg("-C")
+            .arg(workdir)
+            .args(["config", "--get", key])
+            .output()
+            .ok()?;
+
+        if !output.status.success() {
+            return None;
+        }
+
+        let value = String::from_utf8(output.stdout).ok()?;
+        let value = value.trim();
+        if value.is_empty() {
+            None
+        } else {
+            trace!("resolved {key} via git CLI: {value}");
+            Some(value.to_string())
+        }
+    }
+
     /// Get the author email and name from the repository configuration
     ///
-    /// Attempts to read user.name and user.email from git config.
-    /// Falls back to environment variables or defaults if not configured.
+    /// Resolution order for each value:
+    /// 1. The `git` CLI scoped to this repository (honors conditional includes
+    ///    so different repository paths get their own identity).
+    /// 2. libgit2's merged config view (covers environments without `git`).
+    /// 3. The `GIT_AUTHOR_NAME` / `GIT_AUTHOR_EMAIL` environment variables.
+    /// 4. A safe default value.
     ///
     /// # Returns
     /// * `Ok(Author)` - Author information retrieved successfully
@@ -161,14 +201,15 @@ impl Repository {
         const UNKNOWN_EMAIL: &str = "unknown@users.noreply.github.com";
         const UNKNOWN_AUTHOR: &str = "Unknown Author";
 
-        // Try to get user.email from config, fall back to environment or default
-        let email = config
-            .get_string("user.email")
-            .or_else(|_| {
+        // Try git CLI first, then libgit2 config, then environment, then default.
+        let email = self
+            .git_cli_config("user.email")
+            .or_else(|| config.get_string("user.email").ok())
+            .or_else(|| {
                 warn!("user.email not configured in git config");
-                std::env::var("GIT_AUTHOR_EMAIL")
+                std::env::var("GIT_AUTHOR_EMAIL").ok()
             })
-            .unwrap_or_else(|_| {
+            .unwrap_or_else(|| {
                 warn!("using default email: {}", UNKNOWN_EMAIL);
                 env::get("GIT_FALLBACK_EMAIL", UNKNOWN_EMAIL)
             });
@@ -181,14 +222,15 @@ impl Repository {
             env::get("GIT_FALLBACK_EMAIL", UNKNOWN_EMAIL)
         };
 
-        // Try to get user.name from config, fall back to environment or default
-        let name = config
-            .get_string("user.name")
-            .or_else(|_| {
+        // Try git CLI first, then libgit2 config, then environment, then default.
+        let name = self
+            .git_cli_config("user.name")
+            .or_else(|| config.get_string("user.name").ok())
+            .or_else(|| {
                 warn!("user.name not configured in git config");
-                std::env::var("GIT_AUTHOR_NAME")
+                std::env::var("GIT_AUTHOR_NAME").ok()
             })
-            .unwrap_or_else(|_| {
+            .unwrap_or_else(|| {
                 warn!("using default name: Unknown User");
                 "Unknown User".to_string()
             });
