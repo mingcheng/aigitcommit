@@ -9,7 +9,7 @@
  * File Created: 2025-10-16 15:07:05
  *
  * Modified By: mingcheng <mingcheng@apache.org>
- * Last Modified: 2026-06-16 16:20:27
+ * Last Modified: 2026-06-16 18:30:04
  */
 
 use git2::{Oid, Repository as _Repo, RepositoryOpenFlags, Signature};
@@ -358,6 +358,7 @@ impl Repository {
                     .and_then(|commit| {
                         commit
                             .message()
+                            .ok()
                             .map(str::trim)
                             .filter(|msg| !msg.is_empty())
                             .map(String::from)
