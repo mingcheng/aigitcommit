@@ -52,7 +52,7 @@ async fn main() -> utils::Result<()> {
     }
 
     let model_name = env::get("OPENAI_MODEL_NAME", DEFAULT_MODEL);
-    let client = OpenAI::new();
+    let client = OpenAI::new()?;
 
     // Diagnostic flags also short-circuit before touching the repository.
     if cli.check_env {
@@ -93,11 +93,14 @@ async fn main() -> utils::Result<()> {
     let logs = repository.get_logs(DEFAULT_LOG_COUNT)?;
     debug!("got logs size is {}", logs.len());
     if logs.is_empty() {
-        return Err("no commit history found in the repository".into());
+        // Brand-new repositories have no commit history yet; proceed without
+        // it rather than blocking the very first commit.
+        trace!("no commit history found; proceeding without prior-commit context");
     }
 
     let raw = generate_message(&client, &cache, &model_name, &logs, &diffs, cli.no_cache).await?;
     let (title, content) = raw
+        .trim()
         .split_once("\n\n")
         .ok_or("Invalid response format: expected title and content separated by double newline")?;
 

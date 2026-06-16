@@ -16,6 +16,7 @@ use crate::git::message::GitMessage;
 use crate::git::repository::Repository;
 use std::fs;
 use std::io::Write;
+use std::time::{SystemTime, UNIX_EPOCH};
 use tracing::trace;
 
 /// Convenience alias for fallible utility functions in this crate.
@@ -132,8 +133,9 @@ pub fn save_to_file(path: &str, content: &dyn std::fmt::Display) -> Result<()> {
 /// Install the prepare-commit-msg git hook into the target repository.
 ///
 /// If a hook with the same name already exists, it is preserved by renaming
-/// it to `<name>.bak` (overwriting any previous backup) before the new hook
-/// is written. This prevents silently clobbering a user's existing hook.
+/// it to `<name>.bak.<unix-timestamp>` before the new hook is written. The
+/// timestamp suffix ensures repeated installs do not silently overwrite
+/// earlier backups.
 pub fn install_hook(path: &str, name: &str, content: &str) -> Result<()> {
     let repo_dir =
         fs::canonicalize(path).map_err(|e| format!("resolve repository path failed: {e}"))?;
@@ -148,8 +150,20 @@ pub fn install_hook(path: &str, name: &str, content: &str) -> Result<()> {
     let hook_path = hooks_dir.join(name);
 
     // Back up any existing hook with the same name to avoid silent overwrite.
+    // Use a unix-timestamped suffix so repeated installs accumulate distinct
+    // backups rather than clobbering the previous `.bak`.
     if hook_path.exists() {
-        let backup = hooks_dir.join(format!("{name}.bak"));
+        let ts = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let mut backup = hooks_dir.join(format!("{name}.bak.{ts}"));
+        // Avoid colliding with an existing backup taken in the same second.
+        let mut counter: u32 = 1;
+        while backup.exists() {
+            backup = hooks_dir.join(format!("{name}.bak.{ts}.{counter}"));
+            counter += 1;
+        }
         if let Err(e) = fs::rename(&hook_path, &backup) {
             return Err(format!(
                 "failed to back up existing hook {hook_path:?} -> {backup:?}: {e}"
@@ -267,8 +281,18 @@ Signed-off-by: mingcheng <mingcheng@apache.org>
 
         // Re-install: existing hook should be backed up, not silently lost.
         install_hook(path, "prepare-commit-msg", "#!/bin/sh\necho b\n").unwrap();
-        let backup = tmp.join(".git/hooks/prepare-commit-msg.bak");
-        assert!(backup.exists(), "backup file should exist after reinstall");
+        // Find the timestamped backup file.
+        let hooks_dir = tmp.join(".git/hooks");
+        let backup = std::fs::read_dir(&hooks_dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .map(|e| e.path())
+            .find(|p| {
+                p.file_name()
+                    .and_then(|n| n.to_str())
+                    .is_some_and(|n| n.starts_with("prepare-commit-msg.bak."))
+            })
+            .expect("backup file should exist after reinstall");
         assert_eq!(
             std::fs::read_to_string(&backup).unwrap(),
             "#!/bin/sh\necho a\n"
@@ -276,6 +300,24 @@ Signed-off-by: mingcheng <mingcheng@apache.org>
         assert_eq!(
             std::fs::read_to_string(&hook).unwrap(),
             "#!/bin/sh\necho b\n"
+        );
+
+        // A second reinstall must not overwrite the first backup.
+        install_hook(path, "prepare-commit-msg", "#!/bin/sh\necho c\n").unwrap();
+        let backups: Vec<_> = std::fs::read_dir(&hooks_dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .map(|e| e.path())
+            .filter(|p| {
+                p.file_name()
+                    .and_then(|n| n.to_str())
+                    .is_some_and(|n| n.starts_with("prepare-commit-msg.bak."))
+            })
+            .collect();
+        assert!(
+            backups.len() >= 2,
+            "expected at least two distinct backups, found {}",
+            backups.len()
         );
 
         let _ = std::fs::remove_dir_all(&tmp);

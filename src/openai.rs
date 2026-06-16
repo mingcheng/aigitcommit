@@ -39,12 +39,6 @@ pub struct OpenAI {
     client: Client<OpenAIConfig>,
 }
 
-impl Default for OpenAI {
-    fn default() -> Self {
-        Self::new().expect("failed to create OpenAI client")
-    }
-}
-
 impl OpenAI {
     /// Create a new OpenAI client instance.
     /// This function sets up the OpenAI client with the API key, base URL, and optional proxy settings.
@@ -77,9 +71,11 @@ impl OpenAI {
         }
 
         // Build the HTTP client
-        let http_client = http_client_builder
-            .build()
-            .map_err(|e| Box::new(std::io::Error::new(std::io::ErrorKind::Other, format!("failed to build HTTP client: {e}"))) as Box<dyn std::error::Error>)?;
+        let http_client = http_client_builder.build().map_err(|e| {
+            Box::new(std::io::Error::other(format!(
+                "failed to build HTTP client: {e}"
+            ))) as Box<dyn std::error::Error>
+        })?;
 
         let client = Client::with_config(ai_config).with_http_client(http_client);
         Ok(Self { client })
