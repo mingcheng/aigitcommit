@@ -29,6 +29,7 @@ dependencies = [
  "cliclack",
  "git2",
  "log",
+ "once_cell",
  "regex",
  "reqwest",
  "serde",
