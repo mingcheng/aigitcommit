@@ -28,6 +28,32 @@ pub struct GitMessage {
     pub content: String,
 }
 
+/// Configuration used when constructing a [`GitMessage`].
+///
+/// Grouping the construction parameters into a dedicated config struct keeps
+/// [`GitMessage::new`] easy to extend with future options (e.g. trailers,
+/// scope, breaking-change markers) without breaking call sites.
+#[derive(Debug, Clone, Default)]
+pub struct GitMessageConfig {
+    /// The commit title/subject line (will be trimmed).
+    pub title: String,
+    /// The commit body/description (will be trimmed).
+    pub content: String,
+    /// Whether to append a `Signed-off-by` trailer.
+    pub signoff: bool,
+}
+
+impl GitMessageConfig {
+    /// Convenience constructor for the most common fields.
+    pub fn new(title: impl Into<String>, content: impl Into<String>, signoff: bool) -> Self {
+        Self {
+            title: title.into(),
+            content: content.into(),
+            signoff,
+        }
+    }
+}
+
 impl Display for GitMessage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Format as: title\n\ncontent
@@ -36,27 +62,20 @@ impl Display for GitMessage {
 }
 
 impl GitMessage {
-    /// Create a new Git commit message
+    /// Create a new Git commit message from a [`GitMessageConfig`].
     ///
     /// # Arguments
     /// * `repository` - The Git repository (used to get author info for signoff)
-    /// * `title` - The commit title/subject line (will be trimmed)
-    /// * `content` - The commit body/description (will be trimmed)
-    /// * `signoff` - Whether to append a "Signed-off-by" line
+    /// * `config` - Construction parameters; see [`GitMessageConfig`]
     ///
     /// # Returns
     /// * `Ok(GitMessage)` - A valid commit message
     /// * `Err` - If title or content is empty after trimming
     ///
-    pub fn new(
-        repository: &Repository,
-        title: &str,
-        content: &str,
-        signoff: bool,
-    ) -> Result<Self, Box<dyn Error>> {
+    pub fn new(repository: &Repository, config: GitMessageConfig) -> Result<Self, Box<dyn Error>> {
         // Trim inputs first to check actual content
-        let title_trimmed = title.trim();
-        let content_trimmed = content.trim();
+        let title_trimmed = config.title.trim();
+        let content_trimmed = config.content.trim();
 
         // Validate both title and content are non-empty
         if title_trimmed.is_empty() {
@@ -69,7 +88,7 @@ impl GitMessage {
         let mut final_content = content_trimmed.to_string();
 
         // Append signoff line if requested
-        if signoff {
+        if config.signoff {
             trace!("adding Signed-off-by line to commit message");
             let author = repository.get_author()?;
             // Writing into the existing String avoids the intermediate alloc
@@ -104,21 +123,25 @@ mod tests {
     #[test]
     fn rejects_empty_title() {
         let Some(repo) = setup() else { return };
-        let err = GitMessage::new(&repo, "   ", "body", false).unwrap_err();
+        let err = GitMessage::new(&repo, GitMessageConfig::new("   ", "body", false)).unwrap_err();
         assert!(err.to_string().contains("title"));
     }
 
     #[test]
     fn rejects_empty_content() {
         let Some(repo) = setup() else { return };
-        let err = GitMessage::new(&repo, "title", "   ", false).unwrap_err();
+        let err = GitMessage::new(&repo, GitMessageConfig::new("title", "   ", false)).unwrap_err();
         assert!(err.to_string().contains("content"));
     }
 
     #[test]
     fn trims_inputs_and_formats_display() {
         let Some(repo) = setup() else { return };
-        let msg = GitMessage::new(&repo, "  feat: x  ", "  body line  ", false).unwrap();
+        let msg = GitMessage::new(
+            &repo,
+            GitMessageConfig::new("  feat: x  ", "  body line  ", false),
+        )
+        .unwrap();
         assert_eq!(msg.title, "feat: x");
         assert_eq!(msg.content, "body line");
         assert_eq!(format!("{msg}"), "feat: x\n\nbody line");
@@ -127,7 +150,7 @@ mod tests {
     #[test]
     fn appends_signoff_line_when_requested() {
         let Some(repo) = setup() else { return };
-        let msg = GitMessage::new(&repo, "feat: x", "body", true).unwrap();
+        let msg = GitMessage::new(&repo, GitMessageConfig::new("feat: x", "body", true)).unwrap();
         assert!(
             msg.content.contains("Signed-off-by:"),
             "signoff line missing: {}",
