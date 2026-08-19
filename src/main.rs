@@ -23,7 +23,7 @@ use async_openai::types::chat::{
 };
 use clap::Parser;
 use std::fs;
-use std::io::Write;
+use std::io::{IsTerminal, Write};
 use std::path::{Path, PathBuf};
 use tracing::{Level, debug, error, info, trace};
 
@@ -98,7 +98,17 @@ async fn main() -> utils::Result<()> {
         trace!("no commit history found; proceeding without prior-commit context");
     }
 
-    let raw = generate_message(&client, &cache, &model_name, &logs, &diffs, cli.no_cache).await?;
+    let show_progress = std::io::stderr().is_terminal() && !cli.verbose;
+    let raw = generate_message(
+        &client,
+        &cache,
+        &model_name,
+        &logs,
+        &diffs,
+        cli.no_cache,
+        show_progress,
+    )
+    .await?;
     let (title, content) = raw
         .trim()
         .split_once("\n\n")
@@ -150,6 +160,7 @@ async fn generate_message(
     logs: &[String],
     diffs: &[String],
     no_cache: bool,
+    show_progress: bool,
 ) -> utils::Result<String> {
     let key = Cache::build_key(model_name, SYSTEM_PROMPT, diffs, logs);
     debug!("cache key: {key}");
@@ -161,7 +172,16 @@ async fn generate_message(
         return Ok(cached);
     }
 
-    let fresh = request_completion(client, model_name, logs, diffs).await?;
+    let spinner = show_progress.then(cliclack::spinner);
+    if let Some(spinner) = &spinner {
+        spinner.start(format!("Generating commit message with {model_name}"));
+    }
+
+    let result = request_completion(client, model_name, logs, diffs).await;
+    if let Some(spinner) = &spinner {
+        spinner.clear();
+    }
+    let fresh = result?;
     if !no_cache {
         cache.put(&key, &fresh);
     }
