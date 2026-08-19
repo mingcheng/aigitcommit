@@ -1,5 +1,5 @@
 /*!
- * Copyright (c) 2025-2026 mingcheng <mingcheng@apache.org>
+ * Copyright (c) 2026 Ming Lyu, aka mingcheng
  *
  * This source code is licensed under the MIT License,
  * which is located in the LICENSE file in the source tree's root directory.
@@ -9,7 +9,7 @@
  * File Created: 2025-10-16 15:06:58
  *
  * Modified By: mingcheng <mingcheng@apache.org>
- * Last Modified: 2026-05-07 11:30:55
+ * Last Modified: 2026-07-30 10:36:45
  */
 
 use crate::git::repository::Repository;
@@ -33,22 +33,22 @@ pub struct GitMessage {
 /// Grouping the construction parameters into a dedicated config struct keeps
 /// [`GitMessage::new`] easy to extend with future options (e.g. trailers,
 /// scope, breaking-change markers) without breaking call sites.
-#[derive(Debug, Clone, Default)]
-pub struct GitMessageConfig {
+#[derive(Debug, Clone, Copy, Default)]
+pub struct GitMessageConfig<'a> {
     /// The commit title/subject line (will be trimmed).
-    pub title: String,
+    pub title: &'a str,
     /// The commit body/description (will be trimmed).
-    pub content: String,
+    pub content: &'a str,
     /// Whether to append a `Signed-off-by` trailer.
     pub signoff: bool,
 }
 
-impl GitMessageConfig {
+impl<'a> GitMessageConfig<'a> {
     /// Convenience constructor for the most common fields.
-    pub fn new(title: impl Into<String>, content: impl Into<String>, signoff: bool) -> Self {
+    pub fn new(title: &'a str, content: &'a str, signoff: bool) -> Self {
         Self {
-            title: title.into(),
-            content: content.into(),
+            title,
+            content,
             signoff,
         }
     }
@@ -85,6 +85,7 @@ impl GitMessage {
             return Err("commit content cannot be empty".into());
         }
 
+        // Start with the trimmed content; we'll append signoff if needed
         let mut final_content = content_trimmed.to_string();
 
         // Append signoff line if requested

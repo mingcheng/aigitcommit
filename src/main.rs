@@ -1,5 +1,5 @@
 /*!
- * Copyright (c) 2026 mingcheng <mingcheng@apache.org>
+ * Copyright (c) 2026 Ming Lyu, aka mingcheng
  *
  * This source code is licensed under the MIT License,
  * which is located in the LICENSE file in the source tree's root directory.
@@ -8,7 +8,7 @@
  * File Created: 2025-03-01 17:17:30
  *
  * Modified By: mingcheng <mingcheng@apache.org>
- * Last Modified: 2026-05-07 11:39:56
+ * Last Modified: 2026-07-29 22:37:35
  */
 
 use aigitcommit::built_info::{PKG_NAME, PKG_VERSION};
@@ -114,10 +114,9 @@ async fn main() -> utils::Result<()> {
         .split_once("\n\n")
         .ok_or("Invalid response format: expected title and content separated by double newline")?;
 
-    let need_signoff = should_signoff(&repository, cli.signoff);
     let message = GitMessage::new(
         &repository,
-        GitMessageConfig::new(title, content, need_signoff),
+        GitMessageConfig::new(title, content, should_signoff(&repository, cli.signoff)),
     )?;
 
     OutputFormat::detect(cli.json, cli.no_table).write(&message)?;

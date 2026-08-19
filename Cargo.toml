@@ -1,6 +1,6 @@
 [package]
 name = "aigitcommit"
-version = "1.9.5"
+version = "1.9.6"
 edition = "2024"
 description = "A simple git commit message generator by OpenAI compaction model."
 license-file = "LICENSE"
@@ -35,7 +35,7 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 arboard = "3.6"
 tabled = "0.21"
-cliclack = "0.5.6"
+cliclack = "0.5.5"
 regex = "1.13.1"
 
 [[bin]]
