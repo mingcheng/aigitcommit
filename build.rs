@@ -14,4 +14,8 @@
 
 fn main() {
     built::write_built_file().expect("Failed to write built.rs");
+    println!(
+        "cargo:rustc-env=AIGITCOMMIT_BUILD_DATE={}",
+        built::chrono::Utc::now().format("%Y%m%d")
+    );
 }

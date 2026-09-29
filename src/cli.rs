@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025-2026 mingcheng <mingcheng@apache.org>
+ * Copyright (c) 2026 Hangzhou Guanwaii Technology Co,.Ltd., all rights reserved.
  *
  * This source code is licensed under the MIT License,
  * which is located in the LICENSE file in the source tree's root directory.
@@ -8,8 +8,8 @@
  * Author: mingcheng (mingcheng@apache.org)
  * File Created: 2025-03-03 19:31:27
  *
- * Modified By: mingcheng (mingcheng@apache.org)
- * Last Modified: 2025-03-05 00:25:24
+ * Modified By: mingcheng <mingcheng@apache.org>
+ * Last Modified: 2026-09-29 17:06:05
  */
 
 use crate::built_info;
@@ -25,7 +25,7 @@ use clap::{Parser, Subcommand};
 #[command(
     name = built_info::PKG_NAME,
     about = built_info::PKG_DESCRIPTION,
-    version = built_info::PKG_VERSION,
+    version = concat!("v", env!("CARGO_PKG_VERSION"), "(", env!("AIGITCOMMIT_BUILD_DATE"), ")"),
     author = built_info::PKG_AUTHORS,
 )]
 pub struct Cli {
@@ -106,5 +106,21 @@ mod tests {
         // Catches programmer mistakes (duplicate short flags, bad attrs)
         // at test time instead of at first user invocation.
         Cli::command().debug_assert();
+    }
+
+    #[test]
+    fn version_includes_build_date() {
+        let version = Cli::command().render_version();
+        let date = version
+            .trim_end()
+            .strip_prefix(&format!(
+                "{} v{}(",
+                built_info::PKG_NAME,
+                built_info::PKG_VERSION
+            ))
+            .and_then(|rest| rest.strip_suffix(')'))
+            .expect("version should contain a parenthesized build date");
+        assert_eq!(date.len(), 8);
+        assert!(date.bytes().all(|byte| byte.is_ascii_digit()));
     }
 }

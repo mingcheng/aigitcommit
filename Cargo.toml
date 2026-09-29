@@ -51,4 +51,4 @@ panic = "abort"
 debug = false
 
 [build-dependencies]
-built = "0.8"
+built = { version = "0.8", features = ["chrono"] }
