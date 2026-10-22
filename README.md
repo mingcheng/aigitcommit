@@ -80,9 +80,32 @@ cargo install --git https://github.com/mingcheng/aigitcommit.git
 
 Both commands will download, compile, and install the binary to your Cargo bin directory (typically `~/.cargo/bin`). Ensure this directory is in your `PATH`.
 
+### Prebuilt Binaries
+
+Download a versioned archive and `SHA256SUMS` from
+[GitHub Releases](https://github.com/mingcheng/aigitcommit/releases).
+Archives contain the binary, README, and license for Linux and macOS, on both
+x86_64 and ARM64. Linux binaries are built on Ubuntu 24.04 (glibc 2.39);
+macOS binaries target macOS 13 or later.
+
+Verify a downloaded archive before extracting it:
+
+```bash
+sha256sum --ignore-missing --check SHA256SUMS
+tar -xzf aigitcommit-<version>-<target>.tar.gz
+```
+
+On macOS, use `shasum -a 256` to compare the archive's hash with `SHA256SUMS`.
+Install the extracted `aigitcommit` binary into a directory on your `PATH`.
+
 ### Docker Image
 
 Run AIGitCommit in Docker without installing the binary locally.
+Images are published to `ghcr.io/mingcheng/aigitcommit` for `linux/amd64` and
+`linux/arm64`. Pin a release with `:<version>` (without the `v` prefix), or use
+`:latest` for the most recently published stable release. Prereleases receive
+only their version tag and never update `latest`; any `+` in a version's build
+metadata is replaced with `_` in the Docker tag.
 
 **Read-only mode** (generate message only):
 

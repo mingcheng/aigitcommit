@@ -1,0 +1,240 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v[0-9]*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  prepare:
+    name: Validate release version
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+      image: ${{ steps.version.outputs.image }}
+      image-version: ${{ steps.version.outputs.image-version }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Match tag to Cargo package version
+        id: version
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          version=$(cargo metadata --no-deps --locked --format-version 1 |
+            jq -er '.packages[] | select(.name == "aigitcommit") | .version')
+          if [[ "$GITHUB_REF" == refs/tags/* && "$RELEASE_TAG" != "v$version" ]]; then
+            echo "::error::Release tag $RELEASE_TAG must match Cargo.toml version v$version"
+            exit 1
+          fi
+          prerelease=false
+          if [[ "${version%%+*}" == *-* ]]; then
+            prerelease=true
+          fi
+          {
+            echo "version=$version"
+            echo "prerelease=$prerelease"
+            echo "image=ghcr.io/${GITHUB_REPOSITORY,,}"
+            echo "image-version=${version//+/_}"
+          } >> "$GITHUB_OUTPUT"
+
+  quality:
+    needs: prepare
+    uses: ./.github/workflows/cargo.yml
+
+  build:
+    name: Build (${{ matrix.target }})
+    needs: [prepare, quality]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+          - os: macos-15
+            target: aarch64-apple-darwin
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "13.0"
+      TARGET: ${{ matrix.target }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+      - name: Test native target
+        run: cargo test --all --locked --target "$TARGET"
+      - name: Build and smoke-test release binary
+        run: |
+          cargo build --release --locked --target "$TARGET"
+          "target/$TARGET/release/aigitcommit" --version
+          "target/$TARGET/release/aigitcommit" --help
+      - name: Package binary and documentation
+        run: |
+          archive="aigitcommit-$VERSION-$TARGET"
+          mkdir -p "dist/$archive"
+          cp "target/$TARGET/release/aigitcommit" README.md LICENSE "dist/$archive/"
+          tar -czf "dist/$archive.tar.gz" -C dist "$archive"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.target }}
+          path: dist/*.tar.gz
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+  verify:
+    name: Verify release archives
+    needs: [prepare, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+      - name: Check contents and generate checksums
+        working-directory: dist
+        run: |
+          for target in x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu \
+                        x86_64-apple-darwin aarch64-apple-darwin; do
+            archive="aigitcommit-$VERSION-$target"
+            for file in aigitcommit README.md LICENSE; do
+              tar -tzf "$archive.tar.gz" "$archive/$file"
+            done
+          done
+          sha256sum ./*.tar.gz > SHA256SUMS
+          sha256sum --check SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-release
+          path: dist/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+  docker:
+    name: Build and publish GHCR image
+    needs: [prepare, verify]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Set image tags and labels
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ needs.prepare.outputs.image }}
+          flavor: latest=false
+          tags: |
+            type=raw,value=${{ needs.prepare.outputs.image-version }}
+            type=raw,value=latest,enable=${{ needs.prepare.outputs.prerelease == 'false' }}
+          labels: |
+            org.opencontainers.image.title=aigitcommit
+            org.opencontainers.image.description=AI-powered Git commit message generator
+            org.opencontainers.image.version=${{ needs.prepare.outputs.version }}
+      - name: Log in to GHCR
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build image (publish only on tag push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name == 'push' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=release-image
+          cache-to: type=gha,mode=max,scope=release-image
+
+  publish-crates:
+    name: Publish to crates.io
+    if: github.event_name == 'push'
+    needs: [verify, docker]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: crates-io
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Verify crate before authentication
+        run: cargo publish --dry-run --locked --registry crates-io
+      - name: Authenticate to crates.io with OIDC
+        id: auth
+        uses: rust-lang/crates-io-auth-action@v1
+      - name: Publish crate
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: cargo publish --locked --registry crates-io
+
+  publish:
+    name: Publish GitHub Release
+    if: github.event_name == 'push'
+    needs: [prepare, verify, docker, publish-crates]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: verified-release
+          path: dist
+      - name: Verify checksums
+        working-directory: dist
+        run: sha256sum --check SHA256SUMS
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+          prerelease: ${{ needs.prepare.outputs.prerelease == 'true' }}
+          make_latest: ${{ needs.prepare.outputs.prerelease == 'false' }}
+          fail_on_unmatched_files: true
+          files: |
+            dist/*.tar.gz
+            dist/SHA256SUMS

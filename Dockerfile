@@ -1,5 +1,5 @@
-# Stage 1: Dependencies - Cache Rust dependencies separately for faster rebuilds
-FROM rust:alpine AS dependencies
+# Stage 1: Builder
+FROM rust:alpine3.23 AS builder
 LABEL maintainer="mingcheng <mingcheng@apache.org>"
 
 # Install build dependencies required for compilation
@@ -11,34 +11,17 @@ RUN apk add --no-cache \
     pkgconfig \
     perl
 
-# Ensure we're using the latest stable Rust toolchain
-RUN rustup default stable && rustup update stable
-
-# Set the working directory for dependency building
 WORKDIR /build
 
-# Copy only dependency manifests first to leverage Docker layer caching
-COPY Cargo.toml Cargo.lock ./
-
-# Create a dummy source file to build dependencies
-RUN mkdir src && \
-    echo "fn main() {}" > src/main.rs && \
-    cargo build --release && \
-    rm -rf src
-
-# Stage 2: Builder - Build the actual application
-FROM dependencies AS builder
-
-# Copy the actual source code
 COPY . .
 
 # Build the application with optimizations
-RUN cargo build --release && \
+RUN cargo build --release --locked && \
     strip target/release/aigitcommit && \
     cp target/release/aigitcommit /bin/aigitcommit
 
-# Stage 3: Runtime - Create minimal runtime image
-FROM alpine AS runtime
+# Stage 2: Runtime
+FROM alpine:3 AS runtime
 
 # Set timezone (configurable via build args)
 ARG TZ=Asia/Shanghai
@@ -70,6 +53,8 @@ RUN chown -R aigit:aigit /repo
 
 # Switch to non-root user
 USER aigit
+
+RUN aigitcommit --version
 
 # Define the entrypoint
 ENTRYPOINT ["/bin/aigitcommit"]
