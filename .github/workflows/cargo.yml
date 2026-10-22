@@ -1,15 +1,15 @@
 #!#
-# Copyright (c) 2025 Hangzhou Guanwaii Technology Co., Ltd.
+# Copyright (c) 2026 Ming Lyu, aka mingcheng
 #
 # This source code is licensed under the MIT License,
 # which is located in the LICENSE file in the source tree's root directory.
 #
-# File: rust.yml
+# File: cargo.yml
 # Author: mingcheng <mingcheng@apache.org>
 # File Created: 2025-03-05 11:10:40
 #
 # Modified By: mingcheng <mingcheng@apache.org>
-# Last Modified: 2025-10-22 00:33:40
+# Last Modified: 2026-10-22 22:39:59
 ##
 
 name: Cargo Build & Test
@@ -21,11 +21,16 @@ on:
       - master
       - develop
       - "feature/**"
+      - "release/**"
+      - "hotfix/**"
   pull_request:
     branches:
       - main
       - master
       - develop
+      - "release/**"
+  schedule:
+    - cron: "23 4 * * 1"
   workflow_dispatch:
   workflow_call:
 
@@ -40,26 +45,46 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
-  # Code quality checks (clippy and rustfmt)
+  workflow_lint:
+    name: Lint GitHub Actions
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Run actionlint
+        run: |
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/repo:ro" -w /repo \
+            rhysd/actionlint:1.7.12 -color
+
   lint:
     name: Lint (clippy & rustfmt)
-    runs-on: ubuntu-latest
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
           components: clippy, rustfmt
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          cache-on-failure: true
+          save-if: ${{ github.event_name != 'pull_request' }}
 
       - name: Run cargo fmt check
         run: cargo fmt --all -- --check
@@ -67,39 +92,39 @@ jobs:
       - name: Run cargo clippy
         run: cargo clippy --all-targets --all-features --locked -- -D warnings
 
-  # Security audit
   security_audit:
     name: Security Audit
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          cache-on-failure: true
+          save-if: ${{ github.event_name != 'pull_request' }}
 
       - name: Install cargo-audit
-        run: cargo install cargo-audit --locked
+        run: cargo install cargo-audit --version 0.22.2 --locked
 
       - name: Run cargo audit
         run: cargo audit
 
-  # Build and test on stable/beta/nightly
   build_and_test:
-    name: Build & Test (${{ matrix.toolchain }})
-    runs-on: ubuntu-latest
+    name: Build & Test (${{ matrix.label || matrix.toolchain }})
+    if: github.event_name != 'schedule'
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     needs:
       - lint
       - security_audit
+      - workflow_lint
     strategy:
       fail-fast: false
       matrix:
@@ -107,10 +132,18 @@ jobs:
           - stable
           - beta
           - nightly
+        os:
+          - ubuntu-24.04
+        include:
+          - os: macos-15
+            toolchain: stable
+            label: macOS stable
     continue-on-error: ${{ matrix.toolchain == 'nightly' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
       - name: Setup Rust toolchain (${{ matrix.toolchain }})
         uses: dtolnay/rust-toolchain@stable
@@ -120,7 +153,7 @@ jobs:
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          cache-on-failure: true
+          save-if: ${{ github.event_name != 'pull_request' }}
 
       - name: Show Rust version
         run: |
@@ -131,4 +164,5 @@ jobs:
         run: cargo test --all --locked
 
       - name: Verify package can be built
-        run: cargo package --locked --allow-dirty
+        if: matrix.os == 'ubuntu-24.04' && matrix.toolchain == 'stable'
+        run: cargo package --locked

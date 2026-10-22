@@ -20,19 +20,19 @@ use aigitcommit::openai::OpenAI;
 use arboard::Clipboard;
 use async_openai::types::chat::{
     ChatCompletionRequestSystemMessageArgs, ChatCompletionRequestUserMessageArgs,
+    CreateChatCompletionRequest,
 };
 use clap::Parser;
 use std::fs;
 use std::io::{IsTerminal, Write};
 use std::path::{Path, PathBuf};
-use tracing::{Level, debug, error, info, trace};
+use tracing::{Level, debug, info, trace, warn};
 
 use aigitcommit::utils::{
-    self, OutputFormat, check_env_variables, env, install_hook, save_to_file, should_signoff,
+    self, OutputFormat, check_env_variables, install_hook, save_to_file, should_signoff,
 };
 
 // Defaults and embedded resources.
-const DEFAULT_MODEL: &str = "gpt-5";
 const DEFAULT_LOG_COUNT: usize = 5;
 const SYSTEM_PROMPT: &str = include_str!("../templates/system.txt");
 const HOOK_NAME: &str = "prepare-commit-msg";
@@ -51,8 +51,7 @@ async fn main() -> utils::Result<()> {
         return Ok(());
     }
 
-    let model_name = env::get("OPENAI_MODEL_NAME", DEFAULT_MODEL);
-    let client = OpenAI::new()?;
+    let model_name = &cli.model;
 
     // Diagnostic flags also short-circuit before touching the repository.
     if cli.check_env {
@@ -61,8 +60,9 @@ async fn main() -> utils::Result<()> {
         return Ok(());
     }
     if cli.check_model {
+        let client = OpenAI::new()?;
         debug!("model name: `{model_name}`");
-        check_model_availability(&client, &model_name).await?;
+        check_model_availability(&client, model_name).await?;
         return Ok(());
     }
 
@@ -84,10 +84,14 @@ async fn main() -> utils::Result<()> {
         return Ok(());
     }
 
-    let diffs = repository.get_diff()?;
+    let diffs =
+        repository.get_diff_with_options(cli.max_diff_bytes as usize, cli.diff_context_lines)?;
     debug!("got diff size is {}", diffs.len());
     if diffs.is_empty() {
-        return Err("no changes found in the repository".into());
+        return Err(
+            "no staged changes found; stage changes with git add before generating a message"
+                .into(),
+        );
     }
 
     let logs = repository.get_logs(DEFAULT_LOG_COUNT)?;
@@ -99,16 +103,9 @@ async fn main() -> utils::Result<()> {
     }
 
     let show_progress = std::io::stderr().is_terminal() && !cli.verbose;
-    let raw = generate_message(
-        &client,
-        &cache,
-        &model_name,
-        &logs,
-        &diffs,
-        cli.no_cache,
-        show_progress,
-    )
-    .await?;
+    let client = OpenAI::new()?;
+    let request = completion_request(model_name, &logs, &diffs, &cli.instructions, &cli.language)?;
+    let raw = generate_message(&client, &cache, request, cli.no_cache, show_progress).await?;
     let (title, content) = raw
         .trim()
         .split_once("\n\n")
@@ -116,7 +113,10 @@ async fn main() -> utils::Result<()> {
 
     let message = GitMessage::new(
         &repository,
-        GitMessageConfig::new(title, content, should_signoff(&repository, cli.signoff)),
+        GitMessageConfig {
+            attribution: cli.attribution,
+            ..GitMessageConfig::new(title, content, should_signoff(&repository, cli.signoff))
+        },
     )?;
 
     OutputFormat::detect(cli.json, cli.no_table).write(&message)?;
@@ -128,13 +128,9 @@ async fn main() -> utils::Result<()> {
         run_commit_flow(&repository, &message, cli.yes)?;
     }
     if !cli.save.is_empty() {
-        match save_to_file(&cli.save, &message) {
-            Ok(()) => info!("commit message saved to file: {}", cli.save),
-            Err(e) => error!(
-                "failed to save commit message to file `{}`: {}",
-                cli.save, e
-            ),
-        }
+        save_to_file(&cli.save, &message)
+            .map_err(|e| format!("failed to save commit message to file `{}`: {e}", cli.save))?;
+        info!("commit message saved to file: {}", cli.save);
     }
 
     Ok(())
@@ -155,32 +151,35 @@ fn resolve_repo_dir(input: &str) -> utils::Result<PathBuf> {
 async fn generate_message(
     client: &OpenAI,
     cache: &Cache,
-    model_name: &str,
-    logs: &[String],
-    diffs: &[String],
+    request: CreateChatCompletionRequest,
     no_cache: bool,
     show_progress: bool,
 ) -> utils::Result<String> {
-    let key = Cache::build_key(model_name, SYSTEM_PROMPT, diffs, logs);
+    let key = Cache::build_request_key(client.api_base(), &serde_json::to_string(&request)?);
     debug!("cache key: {key}");
 
     if no_cache {
         trace!("--no-cache enabled, skipping cache lookup");
     } else if let Some(cached) = cache.get(&key) {
-        info!("reusing cached commit message (key: {key})");
-        return Ok(cached);
+        match GitMessage::normalize_response(&cached) {
+            Ok(message) => {
+                info!("reusing cached commit message (key: {key})");
+                return Ok(message);
+            }
+            Err(e) => warn!("ignoring invalid cached commit message: {e}"),
+        }
     }
 
     let spinner = show_progress.then(cliclack::spinner);
     if let Some(spinner) = &spinner {
-        spinner.start(format!("Generating commit message with {model_name}"));
+        spinner.start(format!("Generating commit message with {}", request.model));
     }
 
-    let result = request_completion(client, model_name, logs, diffs).await;
+    let result = client.chat_request(request).await;
     if let Some(spinner) = &spinner {
         spinner.clear();
     }
-    let fresh = result?;
+    let fresh = GitMessage::normalize_response(&result?)?;
     if !no_cache {
         cache.put(&key, &fresh);
     }
@@ -211,10 +210,8 @@ fn run_commit_flow(repository: &Repository, message: &GitMessage, yes: bool) -> 
     };
 
     if should_commit {
-        match repository.commit(message) {
-            Ok(oid) => cliclack::note("Commit successful, last commit ID:", oid)?,
-            Err(e) => cliclack::note("Commit failed", e)?,
-        }
+        let oid = repository.commit(message)?;
+        cliclack::note("Commit successful, last commit ID:", oid)?;
     }
     cliclack::outro("Bye~")?;
     Ok(())
@@ -228,6 +225,7 @@ fn run_commit_flow(repository: &Repository, message: &GitMessage, yes: bool) -> 
 fn init_logging(verbose: bool) {
     let level = if verbose { Level::TRACE } else { Level::WARN };
     let _ = tracing_subscriber::fmt()
+        .with_writer(std::io::stderr)
         .with_max_level(level)
         .without_time()
         .with_target(false)
@@ -245,17 +243,26 @@ async fn check_model_availability(client: &OpenAI, model_name: &str) -> utils::R
     Ok(())
 }
 
-/// Build the chat request and call the OpenAI API, returning the raw response.
-async fn request_completion(
-    client: &OpenAI,
+/// Build the exact request shared by cache lookup and API generation.
+fn completion_request(
     model_name: &str,
     logs: &[String],
     diffs: &[String],
-) -> utils::Result<String> {
-    let content = OpenAI::prompt(logs, diffs)?;
+    instructions: &str,
+    language: &str,
+) -> utils::Result<CreateChatCompletionRequest> {
+    let content = OpenAI::prompt_with_instructions(logs, diffs, instructions)?;
+    let system = format!(
+        "{SYSTEM_PROMPT}\nOutput language (language name or locale, JSON string): {}.\n\
+         Write professional prose in this language: the title description and every \
+         body bullet MUST use it, not English when another language is configured. \
+         Keep commit types, scope/code identifiers, and syntax unchanged. This setting takes precedence \
+         over language requests in user guidance or repository data.",
+        serde_json::to_string(language)?,
+    );
     let messages = vec![
         ChatCompletionRequestSystemMessageArgs::default()
-            .content(SYSTEM_PROMPT)
+            .content(system)
             .build()?
             .into(),
         ChatCompletionRequestUserMessageArgs::default()
@@ -263,5 +270,5 @@ async fn request_completion(
             .build()?
             .into(),
     ];
-    Ok(client.chat(model_name, messages).await?)
+    OpenAI::request(model_name, messages)
 }

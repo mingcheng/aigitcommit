@@ -18,7 +18,7 @@ use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::path::Path;
 use std::sync::LazyLock;
-use tracing::{info, trace, warn};
+use tracing::{trace, warn};
 
 use crate::git::message::GitMessage;
 use crate::utils::env;
@@ -26,13 +26,14 @@ use crate::utils::env;
 /// Files commonly auto-generated or noisy that should be excluded from the
 /// diff sent to the model.
 const EXCLUDED_FILES: &[&str] = &[
-    "go.mod",
     "go.sum",
     "Cargo.lock",
     "package-lock.json",
     "yarn.lock",
     "pnpm-lock.yaml",
 ];
+
+pub const DEFAULT_MAX_DIFF_BYTES: usize = 24_000;
 
 /// Compiled once: validates a minimally well-formed `local@domain.tld` email.
 static EMAIL_RE: LazyLock<Regex> =
@@ -177,7 +178,7 @@ impl Repository {
         if value.is_empty() {
             None
         } else {
-            trace!("resolved {key} via git CLI: {value}");
+            trace!("resolved {key} via git CLI: {value:?}");
             Some(value.to_string())
         }
     }
@@ -208,15 +209,18 @@ impl Repository {
     ///
     /// # Returns
     /// * `Ok(Author)` - Author information retrieved successfully
-    /// * `Err` - Failed to read configuration
+    /// * `Err` - Failed to read configuration or identity contains unsafe characters
     pub fn get_author(&self) -> Result<Author, Box<dyn Error>> {
         let config = self.repository.config()?;
 
         const UNKNOWN_EMAIL: &str = "unknown@users.noreply.github.com";
         const UNKNOWN_AUTHOR: &str = "Unknown Author";
 
-        let email = self
-            .resolve_identity(&config, "user.email", "GIT_AUTHOR_EMAIL")
+        let email = self.resolve_identity(&config, "user.email", "GIT_AUTHOR_EMAIL");
+        if let Some(email) = &email {
+            crate::utils::validate_commit_text(email, false)?;
+        }
+        let email = email
             .filter(|email| EMAIL_RE.is_match(email))
             .unwrap_or_else(|| {
                 warn!("user.email missing or invalid, using default: {UNKNOWN_EMAIL}");
@@ -230,6 +234,8 @@ impl Repository {
                 env::get("GIT_FALLBACK_NAME", UNKNOWN_AUTHOR)
             });
 
+        crate::utils::validate_commit_text(&name, false)?;
+        crate::utils::validate_commit_text(&email, false)?;
         Ok(Author { name, email })
     }
 
@@ -242,7 +248,22 @@ impl Repository {
     /// * `Ok(Vec<String>)` - Lines of the diff in patch format
     /// * `Err` - Failed to generate diff
     pub fn get_diff(&self) -> Result<Vec<String>, Box<dyn Error>> {
+        self.get_diff_with_options(DEFAULT_MAX_DIFF_BYTES, 3)
+    }
+
+    /// Bound serialized diff context while retaining metadata for every staged file.
+    pub fn get_diff_with_options(
+        &self,
+        max_bytes: usize,
+        context_lines: u32,
+    ) -> Result<Vec<String>, Box<dyn Error>> {
+        if max_bytes < 4096 {
+            return Err("diff budget must be at least 4096 bytes".into());
+        }
         let index = self.repository.index()?;
+        if index.has_conflicts() {
+            return Err("resolve staged merge conflicts before generating a commit message".into());
+        }
 
         // Get the HEAD tree, or None for initial commit
         let head_tree = match self.repository.head() {
@@ -259,42 +280,169 @@ impl Repository {
         diffopts
             .show_binary(false)
             .force_binary(false)
-            .ignore_submodules(true)
-            .minimal(true)
-            .context_lines(3);
+            .ignore_submodules(false)
+            .context_lines(context_lines);
 
         // Generate diff between HEAD and index (staged changes)
-        let diff = self.repository.diff_tree_to_index(
+        let mut diff = self.repository.diff_tree_to_index(
             head_tree.as_ref(),
             Some(&index),
             Some(&mut diffopts),
         )?;
+        diff.find_similar(Some(
+            git2::DiffFindOptions::new()
+                .renames(true)
+                .exact_match_only(true),
+        ))?;
 
         let mut result = Vec::new();
-
-        diff.print(git2::DiffFormat::Patch, |delta, _hunk, line| {
-            // Skip excluded files entirely.
-            if let Some(name) = delta
+        let mut included = Vec::new();
+        for (i, delta) in diff.deltas().enumerate() {
+            let excluded = delta
                 .new_file()
                 .path()
+                .or_else(|| delta.old_file().path())
                 .and_then(|p| p.file_name())
-                .map(|f| f.to_string_lossy().into_owned())
-                && EXCLUDED_FILES.contains(&name.as_str())
-            {
-                info!("skipping excluded file: {name}");
-                return true;
+                .is_some_and(|name| EXCLUDED_FILES.iter().any(|excluded| name == *excluded));
+            result.push(format!(
+                "File #{}: {:?} {:?} -> {:?}; blobs {} -> {}; modes {:?} -> {:?}{}",
+                i + 1,
+                delta.status(),
+                delta.old_file().path(),
+                delta.new_file().path(),
+                delta.old_file().id(),
+                delta.new_file().id(),
+                delta.old_file().mode(),
+                delta.new_file().mode(),
+                if excluded {
+                    "; content omitted: lock file"
+                } else {
+                    ""
+                },
+            ));
+            if !excluded {
+                included.push(i);
             }
+        }
 
-            // Add non-empty lines to result
-            let content = String::from_utf8_lossy(line.content());
-            let trimmed = content.trim();
-            if !trimmed.is_empty() {
-                result.push(trimmed.to_string());
+        let metadata_bytes = serde_json::to_vec(&result)?.len();
+        let available = max_bytes.checked_sub(metadata_bytes).ok_or(
+            "staged file metadata exceeds diff budget; increase --max-diff-bytes or stage fewer files",
+        )?;
+        if included.is_empty() {
+            return Ok(result);
+        }
+        let per_file = available / included.len();
+        if per_file < 256 {
+            return Err(
+                "too many staged files for diff budget; increase --max-diff-bytes or stage fewer files"
+                    .into(),
+            );
+        }
+
+        for i in included {
+            result.push(format!("Patch for file #{}:", i + 1));
+            let Some(patch) = git2::Patch::from_diff(&diff, i)? else {
+                result.push("[binary content omitted; use file metadata only]".into());
+                continue;
+            };
+            if patch.num_hunks() == 0 {
+                continue;
             }
-            true
-        })?;
+            let per_hunk = (per_file - 128) / patch.num_hunks();
+            let mut truncated = false;
+            for h in 0..patch.num_hunks() {
+                let Some(mut remaining) = per_hunk.checked_sub(64) else {
+                    truncated = true;
+                    break;
+                };
+                let (hunk, lines) = patch.hunk(h)?;
+                let header = String::from_utf8_lossy(hunk.header())
+                    .trim_end()
+                    .to_string();
+                if !Self::push_diff_line(&mut result, header, &mut remaining)? {
+                    truncated = true;
+                    continue;
+                }
+                let group = |origin| match origin {
+                    '-' => 0,
+                    '+' => 1,
+                    _ => 2,
+                };
+                let mut costs = [0usize; 3];
+                for l in 0..lines {
+                    let line = patch.line_in_hunk(h, l)?;
+                    let cost = &mut costs[group(line.origin())];
+                    if *cost > remaining {
+                        continue;
+                    }
+                    let bytes = if line.content().len() > remaining {
+                        remaining + 1
+                    } else {
+                        serde_json::to_vec(&Self::diff_line_text(&line))?.len() + 1
+                    };
+                    *cost = cost.saturating_add(bytes).min(remaining + 1);
+                }
+                // Share space between deletions, additions, and context, giving
+                // unused space from small groups to the remaining groups.
+                let mut groups = [0, 1, 2];
+                groups.sort_by_key(|&g| costs[g]);
+                let mut budgets = [0; 3];
+                for (position, &g) in groups.iter().enumerate() {
+                    budgets[g] = costs[g].min(remaining / (3 - position));
+                    remaining -= budgets[g];
+                }
+                let mut selected = Vec::new();
+                let mut omitted = false;
+                for l in 0..lines {
+                    let line = patch.line_in_hunk(h, l)?;
+                    let budget = &mut budgets[group(line.origin())];
+                    if line.content().len() > *budget
+                        || !Self::push_diff_line(
+                            &mut selected,
+                            Self::diff_line_text(&line),
+                            budget,
+                        )?
+                    {
+                        omitted = true;
+                    }
+                }
+                if omitted {
+                    result.push("[hunk excerpt: some lines omitted]".into());
+                    truncated = true;
+                }
+                result.extend(selected);
+            }
+            if truncated {
+                warn!("diff for file #{} truncated to fit context budget", i + 1);
+                result.push("[patch truncated; do not infer omitted implementation]".into());
+            }
+        }
 
         Ok(result)
+    }
+
+    fn diff_line_text(line: &git2::DiffLine<'_>) -> String {
+        let content = String::from_utf8_lossy(line.content());
+        let content = content.strip_suffix('\n').unwrap_or(&content);
+        match line.origin() {
+            '+' | '-' | ' ' => format!("{}{content}", line.origin()),
+            _ => content.to_string(),
+        }
+    }
+
+    fn push_diff_line(
+        result: &mut Vec<String>,
+        line: String,
+        remaining: &mut usize,
+    ) -> Result<bool, Box<dyn Error>> {
+        let bytes = serde_json::to_vec(&line)?.len() + 1;
+        if bytes > *remaining {
+            return Ok(false);
+        }
+        *remaining -= bytes;
+        result.push(line);
+        Ok(true)
     }
 
     /// Check if commit should be signed off
@@ -336,8 +484,8 @@ impl Repository {
         // HEAD commit yet (unborn branch); treat that as an empty history
         // rather than a hard error so the tool still works for the very
         // first commit.
-        match revwalk.push_head() {
-            Ok(()) => {}
+        match self.repository.head() {
+            Ok(head) => revwalk.push(head.peel_to_commit()?.id())?,
             Err(e) if e.code() == git2::ErrorCode::UnbornBranch => {
                 trace!("unborn branch: returning empty commit history");
                 return Ok(Vec::new());
@@ -388,6 +536,24 @@ mod tests {
     }
 
     impl TempRepo {
+        fn stage(&self, name: &str, content: &[u8]) {
+            std::fs::write(self.path.join(name), content).unwrap();
+            let mut index = self.repo.repository.index().unwrap();
+            index.add_path(Path::new(name)).unwrap();
+            index.write().unwrap();
+        }
+
+        fn commit(&self) {
+            let mut index = self.repo.repository.index().unwrap();
+            let oid = index.write_tree().unwrap();
+            let tree = self.repo.repository.find_tree(oid).unwrap();
+            let sig = Signature::now("Test", "test@example.com").unwrap();
+            self.repo
+                .repository
+                .commit(Some("HEAD"), &sig, &sig, "initial", &tree, &[])
+                .unwrap();
+        }
+
         /// Initialize an empty repo, optionally seeding `user.name` / `user.email`.
         fn new(name: Option<&str>, email: Option<&str>) -> Self {
             static COUNTER: AtomicU32 = AtomicU32::new(0);
@@ -462,9 +628,176 @@ mod tests {
     }
 
     #[test]
-    fn get_logs_errors_on_unborn_branch() {
+    fn get_logs_is_empty_on_unborn_branch() {
         // A repository with no commits has no HEAD to walk from.
         let tmp = TempRepo::new(Some("Local Dev"), Some("local.dev@example.com"));
-        assert!(tmp.repo.get_logs(5).is_err());
+        assert!(tmp.repo.get_logs(5).unwrap().is_empty());
+    }
+
+    #[test]
+    fn diff_preserves_direction_whitespace_and_staged_snapshot() {
+        let tmp = TempRepo::new(None, None);
+        tmp.stage("main.rs", b"fn main() {\n    old();\n\n}\n");
+        tmp.commit();
+        tmp.stage("main.rs", b"fn main() {\n    new();\n\n}\n");
+        std::fs::write(tmp.path.join("main.rs"), "unstaged_secret();").unwrap();
+        let diff = tmp.repo.get_diff().unwrap();
+        assert!(diff.contains(&"-    old();".into()));
+        assert!(diff.contains(&"+    new();".into()));
+        assert!(diff.contains(&" ".into()));
+        assert!(diff.contains(&" fn main() {".into()));
+        assert!(!diff.join("\n").contains("unstaged_secret"));
+    }
+
+    #[test]
+    fn diff_keeps_lock_binary_and_manifest_metadata() {
+        let tmp = TempRepo::new(None, None);
+        tmp.stage("Cargo.lock", b"generated dependency content");
+        tmp.stage("image.bin", b"\0binary payload");
+        tmp.stage("go.mod", b"module example.com/new\n");
+        let diff = tmp.repo.get_diff().unwrap().join("\n");
+        assert!(diff.contains("Cargo.lock"));
+        assert!(!diff.contains("generated dependency content"));
+        assert!(diff.contains("image.bin"));
+        assert!(!diff.contains("binary payload"));
+        assert!(diff.contains("+module example.com/new"));
+    }
+
+    #[test]
+    fn lock_only_and_empty_staging_are_distinct() {
+        let tmp = TempRepo::new(None, None);
+        assert!(tmp.repo.get_diff().unwrap().is_empty());
+        tmp.stage("Cargo.lock", b"version = 1\n");
+        let first = tmp.repo.get_diff().unwrap();
+        assert!(!first.is_empty());
+        tmp.stage("Cargo.lock", b"version = 2\n");
+        assert_ne!(first, tmp.repo.get_diff().unwrap());
+    }
+
+    #[test]
+    fn diff_budget_retains_later_files_and_invalidates_omitted_changes() {
+        let tmp = TempRepo::new(None, None);
+        let large = "line with quotes \" and unicode \u{4e2d}\u{6587}\n".repeat(4000);
+        tmp.stage("a-large.txt", large.as_bytes());
+        tmp.stage("z-small.txt", b"important new behavior\n");
+        let first = tmp.repo.get_diff_with_options(4096, 3).unwrap();
+        let serialized_bytes = serde_json::to_vec(&first).unwrap().len();
+        assert!(serialized_bytes <= 4096);
+        assert!(serialized_bytes * 10 < large.len());
+        eprintln!(
+            "large diff fixture: {} source bytes -> {} serialized context bytes (4096-byte budget)",
+            large.len(),
+            serialized_bytes,
+        );
+        assert!(
+            serde_json::to_vec(&tmp.repo.get_diff().unwrap())
+                .unwrap()
+                .len()
+                <= DEFAULT_MAX_DIFF_BYTES
+        );
+        assert!(first.iter().any(|line| line.contains("patch truncated")));
+        assert!(first.contains(&"+important new behavior".into()));
+        tmp.stage("a-large.txt", format!("{large}changed tail\n").as_bytes());
+        let second = tmp.repo.get_diff_with_options(4096, 3).unwrap();
+        assert_ne!(first, second, "blob IDs must invalidate truncated context");
+        assert!(serde_json::to_vec(&second).unwrap().len() <= 4096);
+    }
+
+    #[test]
+    fn diff_reports_renames_deletions_and_modes() {
+        let tmp = TempRepo::new(None, None);
+        tmp.stage("old.txt", b"rename me\n");
+        tmp.stage("delete.txt", b"remove me\n");
+        tmp.stage("mode.txt", b"mode change\n");
+        tmp.commit();
+        let mut index = tmp.repo.repository.index().unwrap();
+        index.remove_path(Path::new("old.txt")).unwrap();
+        index.remove_path(Path::new("delete.txt")).unwrap();
+        let mut entry = index.get_path(Path::new("mode.txt"), 0).unwrap();
+        entry.mode = 0o100755;
+        index.add(&entry).unwrap();
+        index.write().unwrap();
+        tmp.stage("new.txt", b"rename me\n");
+        let diff = tmp.repo.get_diff().unwrap().join("\n");
+        assert!(diff.contains("Renamed"));
+        assert!(diff.contains("old.txt") && diff.contains("new.txt"));
+        assert!(diff.contains("Deleted") && diff.contains("-remove me"));
+        assert!(diff.contains("BlobExecutable"));
+    }
+
+    #[test]
+    fn diff_rejects_insufficient_metadata_budget() {
+        let tmp = TempRepo::new(None, None);
+        for i in 0..40 {
+            tmp.stage(&format!("{i}.txt"), b"new file\n");
+        }
+        let err = tmp.repo.get_diff_with_options(4096, 3).unwrap_err();
+        assert!(err.to_string().contains("increase --max-diff-bytes"));
+    }
+
+    #[test]
+    fn diff_budget_handles_single_huge_line_without_splitting_unicode() {
+        let tmp = TempRepo::new(None, None);
+        tmp.stage("minified.txt", "\u{4e2d}".repeat(50_000).as_bytes());
+        let diff = tmp.repo.get_diff_with_options(4096, 0).unwrap();
+        assert!(serde_json::to_vec(&diff).unwrap().len() <= 4096);
+        assert!(diff.iter().any(|line| line.contains("patch truncated")));
+        assert!(!diff.join("\n").contains('\u{fffd}'));
+    }
+
+    #[test]
+    fn diff_budget_keeps_later_hunks_and_both_sides_of_large_replacements() {
+        let tmp = TempRepo::new(None, None);
+        let gap = "// unchanged gap\n".repeat(15);
+        let before = format!("{}{gap}count > 0\n", "old_sample\n".repeat(4000),);
+        let after = format!("{}{gap}count >= 0\n", "new_sample\n".repeat(4000),);
+        tmp.stage("sample.txt", before.as_bytes());
+        tmp.commit();
+        tmp.stage("sample.txt", after.as_bytes());
+        let diff = tmp.repo.get_diff_with_options(4096, 3).unwrap();
+        assert!(serde_json::to_vec(&diff).unwrap().len() <= 4096);
+        assert!(diff.contains(&"-old_sample".into()));
+        assert!(diff.contains(&"+new_sample".into()));
+        assert!(diff.contains(&"-count > 0".into()));
+        assert!(diff.contains(&"+count >= 0".into()));
+        assert!(diff.contains(&"[hunk excerpt: some lines omitted]".into()));
+    }
+
+    #[test]
+    fn diff_budget_skips_oversized_lines_without_losing_later_lines_in_the_hunk() {
+        let tmp = TempRepo::new(None, None);
+        tmp.stage("sample.txt", b"before\n");
+        tmp.commit();
+        tmp.stage(
+            "sample.txt",
+            format!("{}\nafter\n", "x".repeat(50_000)).as_bytes(),
+        );
+        let diff = tmp.repo.get_diff_with_options(4096, 3).unwrap();
+        assert!(serde_json::to_vec(&diff).unwrap().len() <= 4096);
+        assert!(diff.contains(&"-before".into()));
+        assert!(diff.contains(&"+after".into()));
+        assert!(diff.contains(&"[hunk excerpt: some lines omitted]".into()));
+    }
+
+    #[test]
+    fn diff_budget_reuses_small_group_shares_without_truncating_a_fitting_hunk() {
+        let tmp = TempRepo::new(None, None);
+        tmp.stage("sample.txt", b"start\nold\nend\n");
+        tmp.commit();
+        tmp.stage(
+            "sample.txt",
+            format!("start\n{}end\n", "new_line\n".repeat(150)).as_bytes(),
+        );
+        let diff = tmp.repo.get_diff_with_options(4096, 3).unwrap();
+        assert!(serde_json::to_vec(&diff).unwrap().len() <= 4096);
+        assert_eq!(diff.iter().filter(|line| *line == "+new_line").count(), 150);
+        assert!(diff.contains(&"-old".into()));
+        assert!(diff.contains(&" start".into()));
+        assert!(diff.contains(&" end".into()));
+        assert!(
+            !diff
+                .iter()
+                .any(|line| line.contains("omitted") || line.contains("truncated"))
+        );
     }
 }
