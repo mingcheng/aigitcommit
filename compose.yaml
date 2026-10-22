@@ -4,10 +4,16 @@ services:
       context: .
     network_mode: host
     environment:
-      OPENAI_API_BASE: ""
-      OPENAI_API_TOKEN: ""
-      OPENAI_MODEL_NAME: ""
-      OPENAI_API_PROXY: ""
+      OPENAI_API_BASE: "${OPENAI_API_BASE:-https://api.openai.com/v1}"
+      OPENAI_API_TOKEN: "${OPENAI_API_TOKEN:-}"
+      OPENAI_API_MODEL: "${OPENAI_API_MODEL-gpt-5}"
+      OPENAI_API_PROXY: "${OPENAI_API_PROXY:-}"
+      OPENAI_API_TIMEOUT: "${OPENAI_API_TIMEOUT:-0}"
+      OPENAI_API_MAX_TOKENS: "${OPENAI_API_MAX_TOKENS:-auto}"
+      OPENAI_API_REASONING_EFFORT: "${OPENAI_API_REASONING_EFFORT:-auto}"
+      AIGITCOMMIT_SIGNOFF: "${AIGITCOMMIT_SIGNOFF:-false}"
+      AIGITCOMMIT_ATTRIBUTION: "${AIGITCOMMIT_ATTRIBUTION-false}"
+      AIGITCOMMIT_LANGUAGE: "${AIGITCOMMIT_LANGUAGE-English}"
 
     volumes:
       - .:/repo:ro

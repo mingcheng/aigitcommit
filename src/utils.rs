@@ -26,10 +26,16 @@ pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 const CHECKED_ENV_VARS: &[&str] = &[
     "OPENAI_API_BASE",
     "OPENAI_API_TOKEN",
-    "OPENAI_MODEL_NAME",
+    "OPENAI_API_MODEL",
     "OPENAI_API_PROXY",
     "OPENAI_API_TIMEOUT",
+    "OPENAI_API_MAX_TOKENS",
+    "OPENAI_API_REASONING_EFFORT",
     "AIGITCOMMIT_SIGNOFF",
+    "AIGITCOMMIT_ATTRIBUTION",
+    "AIGITCOMMIT_LANGUAGE",
+    "AIGITCOMMIT_MAX_DIFF_BYTES",
+    "AIGITCOMMIT_DIFF_CONTEXT_LINES",
 ];
 
 /// Environment variable helpers.
@@ -56,8 +62,8 @@ pub mod env {
     /// Log whether `var_name` is set, returning the result.
     pub fn exists(var_name: &str) -> bool {
         match env::var(var_name) {
-            Ok(value) => {
-                debug!("{} is set to {}", var_name, value);
+            Ok(_) => {
+                debug!("{} is set", var_name);
                 true
             }
             Err(_) => {
@@ -120,7 +126,14 @@ fn print_table(title: &str, content: &str) {
 /// Log presence/absence of every environment variable consulted by the tool.
 pub fn check_env_variables() {
     for var in CHECKED_ENV_VARS {
-        env::exists(var);
+        println!(
+            "{var}: {}",
+            if std::env::var(var).is_ok_and(|value| !value.trim().is_empty()) {
+                "set"
+            } else {
+                "not set"
+            }
+        );
     }
 }
 

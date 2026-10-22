@@ -12,8 +12,10 @@
  * Last Modified: 2026-07-30 10:36:45
  */
 
+use crate::built_info::{PKG_NAME, PKG_VERSION};
 use crate::git::repository::Repository;
 use std::fmt::Write as _;
+use std::sync::LazyLock;
 use std::{error::Error, fmt::Display};
 use tracing::trace;
 
@@ -41,6 +43,8 @@ pub struct GitMessageConfig<'a> {
     pub content: &'a str,
     /// Whether to append a `Signed-off-by` trailer.
     pub signoff: bool,
+    /// Whether to append tool attribution when signoff is enabled.
+    pub attribution: bool,
 }
 
 impl<'a> GitMessageConfig<'a> {
@@ -50,6 +54,7 @@ impl<'a> GitMessageConfig<'a> {
             title,
             content,
             signoff,
+            attribution: false,
         }
     }
 }
@@ -62,6 +67,52 @@ impl Display for GitMessage {
 }
 
 impl GitMessage {
+    /// Normalize common transport formatting and reject unusable model output.
+    pub fn normalize_response(raw: &str) -> crate::utils::Result<String> {
+        static HEADER: LazyLock<regex::Regex> = LazyLock::new(|| {
+            regex::Regex::new(
+                r"^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^()\r\n]+\))?!?: \S[^\r\n]*$",
+            ).expect("valid Conventional Commit header regex")
+        });
+        let normalized = raw.replace("\r\n", "\n");
+        let mut text = normalized.trim();
+        for prefix in ["```\n", "```text\n", "```plaintext\n"] {
+            if let Some(inner) = text
+                .strip_prefix(prefix)
+                .and_then(|s| s.strip_suffix("\n```"))
+            {
+                text = inner.trim();
+                break;
+            }
+        }
+        let (title, body) = text
+            .split_once("\n\n")
+            .or_else(|| text.split_once('\n'))
+            .ok_or("invalid model response: expected title, blank line, and bullet body")?;
+        let body = body.trim();
+        if !HEADER.is_match(title) {
+            return Err("invalid model response: expected a Conventional Commit title".into());
+        }
+        let bullets: Vec<&str> = body.lines().collect();
+        if !(1..=5).contains(&bullets.len())
+            || bullets.iter().any(|line| {
+                !line
+                    .strip_prefix("- ")
+                    .is_some_and(|text| !text.trim().is_empty())
+                    || line.contains("```")
+                    || line.contains("Signed-off-by:")
+                    || line.contains("Co-authored-by:")
+                    || line.contains("Generated-by:")
+            })
+        {
+            return Err(
+                "invalid model response: expected one to five non-empty bullets without trailers"
+                    .into(),
+            );
+        }
+        Ok(format!("{title}\n\n{body}"))
+    }
+
     /// Create a new Git commit message from a [`GitMessageConfig`].
     ///
     /// # Arguments
@@ -99,6 +150,9 @@ impl GitMessage {
                 "\n\nSigned-off-by: {} <{}>",
                 author.name, author.email
             )?;
+            if config.attribution {
+                write!(final_content, "\nGenerated-by: {PKG_NAME} v{PKG_VERSION}")?;
+            }
         }
 
         trace!("created commit message with title: {}", title_trimmed);
@@ -115,6 +169,52 @@ impl GitMessage {
 mod tests {
     use super::*;
     use std::env;
+
+    #[test]
+    fn normalizes_fenced_crlf_response() {
+        assert_eq!(
+            GitMessage::normalize_response(
+                "```text\r\nfix(core): handle empty input\r\n\r\n- reject empty values\r\n```"
+            )
+            .unwrap(),
+            "fix(core): handle empty input\n\n- reject empty values",
+        );
+    }
+
+    #[test]
+    fn normalizes_missing_blank_separator_without_accepting_prose() {
+        assert_eq!(
+            GitMessage::normalize_response("fix: accept zero\n- allow zero counts").unwrap(),
+            "fix: accept zero\n\n- allow zero counts",
+        );
+        assert!(
+            GitMessage::normalize_response("fix: accept zero\nExplanation:\n- allow zero").is_err()
+        );
+    }
+
+    #[test]
+    fn rejects_malformed_generated_messages() {
+        for raw in [
+            "",
+            "No changes detected.",
+            "fix: x",
+            "fix: x\n\n",
+            "Here is a message:\n\n- something",
+            "fix: x\n\nbody",
+            "fix: x\n\n- ",
+            "fix: x\n\n- change\nSigned-off-by: someone",
+            "fix: x\n\n- Generated-by: invented tool",
+            "fix: x\n\n- a\n- b\n- c\n- d\n- e\n- f",
+        ] {
+            assert!(GitMessage::normalize_response(raw).is_err(), "{raw:?}");
+        }
+        assert!(
+            GitMessage::normalize_response(
+                "feat(api)!: change response\n\n- update response fields"
+            )
+            .is_ok()
+        );
+    }
 
     fn setup() -> Option<Repository> {
         let path = env::var("TEST_REPO_PATH").unwrap_or_else(|_| ".".to_string());

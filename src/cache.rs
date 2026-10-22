@@ -33,6 +33,16 @@ pub struct Cache {
 }
 
 impl Cache {
+    /// Hash the endpoint and exact serialized request, without storing credentials.
+    pub fn build_request_key(api_base: &str, request: &str) -> String {
+        let mut hasher = Fnv1a64::new();
+        for value in ["request-v2", api_base, request] {
+            hasher.write(&(value.len() as u64).to_le_bytes());
+            hasher.write(value.as_bytes());
+        }
+        format!("{:016x}", hasher.finish())
+    }
+
     /// Create a new cache rooted under the given git directory.
     ///
     /// The cache directory is created lazily on first write, so this constructor
@@ -166,6 +176,21 @@ impl Fnv1a64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn request_key_includes_endpoint_and_exact_request() {
+        let key = Cache::build_request_key("https://one/v1", "request");
+        assert_eq!(key, Cache::build_request_key("https://one/v1", "request"));
+        assert_ne!(key, Cache::build_request_key("https://two/v1", "request"));
+        assert_ne!(
+            key,
+            Cache::build_request_key("https://one/v1", "new request")
+        );
+        assert_ne!(
+            Cache::build_request_key("ab", "c"),
+            Cache::build_request_key("a", "bc")
+        );
+    }
 
     #[test]
     fn build_key_is_stable_and_sensitive() {

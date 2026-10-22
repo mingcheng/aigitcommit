@@ -34,6 +34,7 @@ Session.vim
 !/tests/run-make/thumb-none-qemu/example/.cargo
 
 ## Configuration
+/.env
 /config.toml
 /Makefile
 config.mk
