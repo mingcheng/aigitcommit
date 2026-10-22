@@ -69,7 +69,7 @@ rustc-ice-*.txt
 *~
 \#*
 \#*\#
-.#*
+.     #*
 
 ## Tags
 tags
@@ -99,5 +99,6 @@ tests/rustdoc-gui/src/**.lock
 /flake.nix
 flake.lock
 /default.nix
+/mise.toml
 
 # Before adding new lines, see the comment at the top.
