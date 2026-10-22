@@ -12,20 +12,6 @@ It inspects your diffs, summarizes the intent of your changes, and produces clea
 
 <a href="https://www.producthunt.com/products/aigitcommit/reviews?utm_source=badge-product_review&utm_medium=badge&utm_source=badge-aigitcommit" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/product_review.svg?product_id=1047881&theme=dark" alt="AIGitCommit - A&#0032;simple&#0032;tool&#0032;to&#0032;help&#0032;you&#0032;write&#0032;better&#0032;Git&#0032;commit&#0032;messages&#0046; | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" /></a>
 
-## References
-
-- [Conventional Commits Specification](https://www.conventionalcommits.org/en/v1.0.0/)
-- [Understanding Semantic Commit Messages](https://nitayneeman.com/blog/understanding-semantic-commit-messages-using-git-and-angular/)
-- [Commit Message Best Practices](https://ssshooter.com/2020-09-30-commit-message/)
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit issues, feature requests, or pull requests on [GitHub](https://github.com/mingcheng/aigitcommit).
-
-## License
-
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-
 ## Features
 
 - **AI-Powered Commit Messages**: Automatically generates meaningful, semantic commit messages from staged Git changes
@@ -523,6 +509,16 @@ aigitcommit --commit
 git commit  # Hook generates message automatically
 ```
 
+## References
+
+- [Conventional Commits Specification](https://www.conventionalcommits.org/en/v1.0.0/)
+- [Understanding Semantic Commit Messages](https://nitayneeman.com/blog/understanding-semantic-commit-messages-using-git-and-angular/)
+- [Commit Message Best Practices](https://ssshooter.com/2020-09-30-commit-message/)
+
+## Contributing
+
+Contributions are welcome. Please submit issues, feature requests, or pull requests on [GitHub](https://github.com/mingcheng/aigitcommit).
+
 ## License
 
-This project is licensed under the MIT License. See the `LICENSE` file for details.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
