@@ -82,7 +82,13 @@ secrets are not automatically redacted.
 
 ## Installation
 
-### From crates.io (Recommended)
+### From Homebrew(Recommended)
+
+```bash
+brew install mingcheng/tap/aigitcommit
+```
+
+### From crates.io
 
 ```bash
 cargo install aigitcommit
@@ -120,10 +126,7 @@ Install the extracted `aigitcommit` binary into a directory on your `PATH`.
 
 Run AIGitCommit in Docker without installing the binary locally.
 Images are published to `ghcr.io/mingcheng/aigitcommit` for `linux/amd64` and
-`linux/arm64`. Pin a release with `:<version>` (without the `v` prefix), or use
-`:latest` for the most recently published stable release. Prereleases receive
-only their version tag and never update `latest`; any `+` in a version's build
-metadata is replaced with `_` in the Docker tag.
+`linux/arm64`. 
 
 **Read-only mode** (generate message only):
 
