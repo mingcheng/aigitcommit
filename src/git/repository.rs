@@ -178,7 +178,7 @@ impl Repository {
         if value.is_empty() {
             None
         } else {
-            trace!("resolved {key} via git CLI: {value}");
+            trace!("resolved {key} via git CLI: {value:?}");
             Some(value.to_string())
         }
     }
@@ -209,15 +209,18 @@ impl Repository {
     ///
     /// # Returns
     /// * `Ok(Author)` - Author information retrieved successfully
-    /// * `Err` - Failed to read configuration
+    /// * `Err` - Failed to read configuration or identity contains unsafe characters
     pub fn get_author(&self) -> Result<Author, Box<dyn Error>> {
         let config = self.repository.config()?;
 
         const UNKNOWN_EMAIL: &str = "unknown@users.noreply.github.com";
         const UNKNOWN_AUTHOR: &str = "Unknown Author";
 
-        let email = self
-            .resolve_identity(&config, "user.email", "GIT_AUTHOR_EMAIL")
+        let email = self.resolve_identity(&config, "user.email", "GIT_AUTHOR_EMAIL");
+        if let Some(email) = &email {
+            crate::utils::validate_commit_text(email, false)?;
+        }
+        let email = email
             .filter(|email| EMAIL_RE.is_match(email))
             .unwrap_or_else(|| {
                 warn!("user.email missing or invalid, using default: {UNKNOWN_EMAIL}");
@@ -231,6 +234,8 @@ impl Repository {
                 env::get("GIT_FALLBACK_NAME", UNKNOWN_AUTHOR)
             });
 
+        crate::utils::validate_commit_text(&name, false)?;
+        crate::utils::validate_commit_text(&email, false)?;
         Ok(Author { name, email })
     }
 

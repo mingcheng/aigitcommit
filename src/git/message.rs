@@ -75,6 +75,7 @@ impl GitMessage {
             ).expect("valid Conventional Commit header regex")
         });
         let normalized = raw.replace("\r\n", "\n");
+        crate::utils::validate_commit_text(&normalized, true)?;
         let mut text = normalized.trim();
         for prefix in ["```\n", "```text\n", "```plaintext\n"] {
             if let Some(inner) = text
@@ -121,9 +122,11 @@ impl GitMessage {
     ///
     /// # Returns
     /// * `Ok(GitMessage)` - A valid commit message
-    /// * `Err` - If title or content is empty after trimming
+    /// * `Err` - If text is empty, contains unsafe characters, or identity is invalid
     ///
     pub fn new(repository: &Repository, config: GitMessageConfig) -> Result<Self, Box<dyn Error>> {
+        crate::utils::validate_commit_text(config.title, false)?;
+        crate::utils::validate_commit_text(config.content, true)?;
         // Trim inputs first to check actual content
         let title_trimmed = config.title.trim();
         let content_trimmed = config.content.trim();
@@ -179,6 +182,42 @@ mod tests {
             .unwrap(),
             "fix(core): handle empty input\n\n- reject empty values",
         );
+    }
+
+    #[test]
+    fn rejects_terminal_controls_and_display_spoofing_before_trimming() {
+        let forbidden = (0u8..=0x9f)
+            .map(char::from)
+            .filter(|ch| ch.is_control() && *ch != '\n')
+            .chain([
+                '\u{00ad}', '\u{061c}', '\u{200b}', '\u{200e}', '\u{200f}', '\u{2028}', '\u{2029}',
+                '\u{202a}', '\u{202b}', '\u{202c}', '\u{202d}', '\u{202e}', '\u{2060}', '\u{2066}',
+                '\u{2067}', '\u{2068}', '\u{2069}', '\u{feff}',
+            ]);
+        for ch in forbidden {
+            for raw in [
+                format!("fix: handle {ch}input\n\n- reject invalid input"),
+                format!("fix: handle input\n\n- reject {ch}invalid input"),
+                format!("fix: handle input\n\n- reject invalid input{ch}"),
+            ] {
+                let error = GitMessage::normalize_response(&raw)
+                    .unwrap_err()
+                    .to_string();
+                assert!(error.contains(&format!("U+{:04X}", u32::from(ch))));
+                assert!(!error.contains(ch));
+            }
+        }
+    }
+
+    #[test]
+    fn preserves_multilingual_prose_and_joiners() {
+        for raw in [
+            "fix: \u{4fee}\u{590d}\u{8f93}\u{5165}\n\n- \u{68c0}\u{67e5}\u{8f93}\u{5165}",
+            "fix: \u{645}\u{6cc}\u{200c}\u{634}\u{648}\u{62f}\n\n- preserve \u{915}\u{94d}\u{200d}\u{937}",
+            "fix(api)!: handle input\n\n- preserve \u{1f469}\u{200d}\u{1f4bb}",
+        ] {
+            assert_eq!(GitMessage::normalize_response(raw).unwrap(), raw);
+        }
     }
 
     #[test]

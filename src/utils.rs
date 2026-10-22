@@ -22,6 +22,30 @@ use tracing::trace;
 /// Convenience alias for fallible utility functions in this crate.
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
+pub(crate) fn validate_commit_text(text: &str, multiline: bool) -> Result<()> {
+    for ch in text.chars() {
+        if multiline && ch == '\n' {
+            continue;
+        }
+        // Keep ZWNJ/ZWJ for legitimate scripts; reject terminal and display spoofing.
+        if ch.is_control()
+            || matches!(
+                ch,
+                '\u{00ad}' | '\u{061c}' | '\u{200b}' | '\u{200e}'..='\u{200f}'
+                    | '\u{2028}'..='\u{202e}' | '\u{2060}' | '\u{2066}'..='\u{2069}'
+                    | '\u{feff}'
+            )
+        {
+            return Err(format!(
+                "unsafe commit text: forbidden character U+{:04X}",
+                u32::from(ch)
+            )
+            .into());
+        }
+    }
+    Ok(())
+}
+
 /// Environment variables surfaced by `--check-env`.
 const CHECKED_ENV_VARS: &[&str] = &[
     "OPENAI_API_BASE",

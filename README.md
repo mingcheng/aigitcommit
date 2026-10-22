@@ -39,7 +39,8 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
   - Copy to clipboard with `--copy-to-clipboard`
   - Git hook integration for automatic message generation
 - **Interactive & Non-Interactive**: Confirmation prompts by default, skip with `--yes` for scripting
-- **Security & Performance**: Uses libgit2 via the `git2` crate, avoiding external git command execution
+- **Git-Native Operations**: Uses libgit2 for diffs, history, and commits; Git CLI config lookup preserves conditional-include behavior
+- **Prompt-Injection Defenses**: Layered safeguards help reduce malicious instructions and unsafe output. [Learn more](#prompt-injection-defenses).
 - **Multi-Provider Support**: Compatible with OpenAI and other OpenAI-compatible APIs (Azure OpenAI, local models, etc.)
 - **Flexible Configuration**:
   - Environment variables for API settings
@@ -68,7 +69,7 @@ deletions, exact renames, and mode-only changes remain visible to the model;
 dependency manifests such as `go.mod` retain their patches.
 
 Diff context preserves additions, deletions, blank lines, and indentation.
-The default budget is **48,000 serialized JSON bytes**, shared across file
+The default budget is **24,000 serialized JSON bytes**, shared across file
 patches after reserving metadata for all staged files. Within each file, hunks
 share the budget and additions, deletions, and context receive separate shares.
 Unused space from small line groups is reused within their hunk. This keeps a
@@ -79,6 +80,19 @@ cannot fit, generation stops with an
 actionable error instead of silently dropping files. This is a byte budget,
 not a model-specific token count; system instructions and user guidance are
 additional. Recent history is limited to five subjects of 200 characters each.
+
+## Prompt-Injection Defenses
+
+AIGitCommit uses layered safeguards without extra AI requests:
+
+- **Separate data from instructions** to reduce manipulation through repository content.
+- **Restrict model capabilities**: no command execution, file access, or link fetching.
+- **Validate generated and cached messages** before use, rejecting terminal control
+  sequences and forged signoff or attribution.
+
+These safeguards reduce risk, not eliminate it. Review messages before committing.
+Staged content and recent commit subjects are sent to your configured provider;
+secrets are not automatically redacted.
 
 ## Installation
 
