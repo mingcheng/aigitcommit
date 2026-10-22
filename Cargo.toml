@@ -2,7 +2,7 @@
 name = "aigitcommit"
 version = "1.9.7"
 edition = "2024"
-description = "A simple git commit message generator by OpenAI compaction model."
+description = "Generate Conventional Commit messages from staged changes using OpenAI-compatible APIs."
 license-file = "LICENSE"
 readme = "README.md"
 keywords = ["git", "tools", "ai", "development"]
@@ -14,28 +14,21 @@ categories = ["command-line-utilities", "development-tools"]
 
 [dependencies]
 reqwest = { version = "0.13", features = [
-    "json",
-    "stream",
     "socks",
-    "blocking",
-    "multipart",
-    "http2",
-    "charset",
     "native-tls-vendored",
 ] }
-askama = "0.16"
-async-openai = { version = "0.41", features = ["chat-completion", "model"] }
+askama = { version = "0.16", default-features = false, features = ["derive", "std"] }
+async-openai = { version = "0.42", features = ["chat-completion", "model"] }
 git2 = "0.21"
-tokio = { version = "1.53.1", features = ["full"] }
+tokio = { version = "1.54.1", features = ["macros", "rt-multi-thread"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-log = "0.4"
 clap = { version = "4.6", features = ["derive", "env"] }
 tracing = "0.1"
 tracing-subscriber = "0.3"
-arboard = "3.6"
-tabled = "0.21"
-cliclack = "0.5.5"
+arboard = "3.7"
+tabled = "0.22"
+cliclack = "0.5.6"
 regex = "1.13.1"
 
 [[bin]]
