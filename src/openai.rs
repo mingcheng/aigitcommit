@@ -250,6 +250,13 @@ impl OpenAI {
                 usage.completion_tokens, usage.prompt_tokens, usage.total_tokens
             );
             if let Some(tokens) = usage
+                .prompt_tokens_details
+                .as_ref()
+                .and_then(|details| details.cached_tokens)
+            {
+                debug!("cached_prompt_tokens: {tokens}");
+            }
+            if let Some(tokens) = usage
                 .completion_tokens_details
                 .as_ref()
                 .and_then(|details| details.reasoning_tokens)
@@ -292,12 +299,21 @@ impl OpenAI {
         diff: &[String],
         instructions: &str,
     ) -> Result<String, Box<dyn Error>> {
-        let logs: Vec<String> = logs
-            .iter()
-            .take(5)
-            .map(|log| log.lines().next().unwrap_or("").chars().take(200).collect())
-            .collect();
-        let logs_json = serde_json::to_string(&logs)?;
+        let mut subjects = Vec::new();
+        for log in logs.iter().take(5) {
+            let subject: String = log
+                .lines()
+                .next()
+                .unwrap_or("")
+                .trim()
+                .chars()
+                .take(200)
+                .collect();
+            if !subject.is_empty() && !subjects.contains(&subject) {
+                subjects.push(subject);
+            }
+        }
+        let logs_json = serde_json::to_string(&subjects)?;
         let diffs_json = serde_json::to_string(diff)?;
         let instructions_json = serde_json::to_string(instructions)?;
         let template = PromptTemplate {
@@ -371,8 +387,29 @@ mod test {
         let prompt =
             OpenAI::prompt_with_instructions(&logs, &["+change".into()], "use Chinese").unwrap();
         assert!(!prompt.contains("long body"));
-        assert_eq!(prompt.matches(&"x".repeat(200)).count(), 5);
+        assert_eq!(prompt.matches(&"x".repeat(200)).count(), 1);
         assert!(prompt.contains("\"use Chinese\""));
+        let parsed: serde_json::Value = serde_json::from_str(&prompt).unwrap();
+        assert_eq!(parsed["staged"], serde_json::json!(["+change"]));
+        assert_eq!(parsed["guidance"], "use Chinese");
+    }
+
+    #[test]
+    fn prompt_retains_distinct_recent_subjects_in_order() {
+        let logs = vec![
+            "".into(),
+            "fix: first\nbody".into(),
+            "fix: first".into(),
+            "feat: second".into(),
+            "docs: third".into(),
+            "chore: too old".into(),
+        ];
+        let prompt = OpenAI::prompt(&logs, &["+line".into()]).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&prompt).unwrap();
+        assert_eq!(
+            parsed["subjects"],
+            serde_json::json!(["fix: first", "feat: second", "docs: third"])
+        );
     }
 
     #[test]

@@ -63,7 +63,7 @@ impl TestRepo {
             .env("AIGITCOMMIT_LANGUAGE", "English")
             .env("OPENAI_API_REASONING_EFFORT", "auto")
             .env("OPENAI_API_MAX_TOKENS", "auto")
-            .env("AIGITCOMMIT_MAX_DIFF_BYTES", "48000")
+            .env_remove("AIGITCOMMIT_MAX_DIFF_BYTES")
             .env("AIGITCOMMIT_DIFF_CONTEXT_LINES", "3");
         for key in [
             "OPENAI_API_PROXY",
@@ -492,6 +492,7 @@ fn cli_language_controls_prompt_cache_and_preserves_commit_format() {
         .to_string();
     assert!(system.contains("JSON string): \"English\"."));
     assert!(system.contains("Write professional prose"));
+    assert!(system.contains("the title description and every body bullet MUST use it"));
     let spanish = assert_success(
         repo.command(&api)
             .env("AIGITCOMMIT_LANGUAGE", "Spanish")

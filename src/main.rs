@@ -256,7 +256,9 @@ fn completion_request(
     let content = OpenAI::prompt_with_instructions(logs, diffs, instructions)?;
     let system = format!(
         "{SYSTEM_PROMPT}\nOutput language (language name or locale, JSON string): {}.\n\
-         Write professional prose in this language. This setting takes precedence \
+         Write professional prose in this language: the title description and every \
+         body bullet MUST use it, not English when another language is configured. \
+         Keep commit types, scope/code identifiers, and syntax unchanged. This setting takes precedence \
          over language requests in user guidance or repository data.",
         serde_json::to_string(language)?,
     );

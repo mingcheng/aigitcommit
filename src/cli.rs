@@ -105,7 +105,7 @@ pub struct Cli {
     pub instructions: String,
 
     /// Maximum serialized diff bytes sent to the model, including file metadata.
-    #[arg(long, env = "AIGITCOMMIT_MAX_DIFF_BYTES", default_value = "48000",
+    #[arg(long, env = "AIGITCOMMIT_MAX_DIFF_BYTES", default_value = "24000",
         value_parser = clap::value_parser!(u32).range(4096..))]
     pub max_diff_bytes: u32,
 
@@ -146,6 +146,15 @@ mod tests {
         // Catches programmer mistakes (duplicate short flags, bad attrs)
         // at test time instead of at first user invocation.
         Cli::command().debug_assert();
+        let command = Cli::command();
+        let budget = command
+            .get_arguments()
+            .find(|arg| arg.get_id() == "max_diff_bytes")
+            .unwrap();
+        assert_eq!(
+            budget.get_default_values()[0].to_string_lossy(),
+            crate::git::repository::DEFAULT_MAX_DIFF_BYTES.to_string(),
+        );
     }
 
     #[test]

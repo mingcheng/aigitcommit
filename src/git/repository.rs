@@ -33,7 +33,7 @@ const EXCLUDED_FILES: &[&str] = &[
     "pnpm-lock.yaml",
 ];
 
-pub const DEFAULT_MAX_DIFF_BYTES: usize = 48_000;
+pub const DEFAULT_MAX_DIFF_BYTES: usize = 24_000;
 
 /// Compiled once: validates a minimally well-formed `local@domain.tld` email.
 static EMAIL_RE: LazyLock<Regex> =
