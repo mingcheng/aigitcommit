@@ -210,10 +210,8 @@ fn run_commit_flow(repository: &Repository, message: &GitMessage, yes: bool) -> 
     };
 
     if should_commit {
-        match repository.commit(message) {
-            Ok(oid) => cliclack::note("Commit successful, last commit ID:", oid)?,
-            Err(e) => cliclack::note("Commit failed", e)?,
-        }
+        let oid = repository.commit(message)?;
+        cliclack::note("Commit successful, last commit ID:", oid)?;
     }
     cliclack::outro("Bye~")?;
     Ok(())

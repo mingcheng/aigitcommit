@@ -138,6 +138,7 @@ impl MockApi {
                     }
                     Err(e) => panic!("mock accept: {e}"),
                 };
+                stream.set_nonblocking(false).unwrap();
                 stream
                     .set_read_timeout(Some(Duration::from_secs(5)))
                     .unwrap();
@@ -195,7 +196,12 @@ impl MockApi {
 impl Drop for MockApi {
     fn drop(&mut self) {
         self.stop.store(true, Ordering::Relaxed);
-        self.worker.take().unwrap().join().unwrap();
+        if let Some(worker) = self.worker.take()
+            && let Err(payload) = worker.join()
+            && !thread::panicking()
+        {
+            std::panic::resume_unwind(payload);
+        }
     }
 }
 

@@ -24,12 +24,11 @@ use async_openai::{
         CreateChatCompletionResponse, FinishReason,
     },
 };
-use log::trace;
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{ClientBuilder, Proxy};
 use std::error::Error;
 use std::time::Duration;
-use tracing::{debug, warn};
+use tracing::{debug, trace, warn};
 
 #[derive(Template)]
 #[template(path = "user.txt")]

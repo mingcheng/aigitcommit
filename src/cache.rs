@@ -53,33 +53,6 @@ impl Cache {
         }
     }
 
-    /// Build a stable cache key from the request-relevant inputs.
-    ///
-    /// Uses 64-bit FNV-1a so the same inputs always produce the same key
-    /// regardless of the standard library's hashing implementation.
-    pub fn build_key(
-        model: &str,
-        system_prompt: &str,
-        diffs: &[String],
-        logs: &[String],
-    ) -> String {
-        let mut hasher = Fnv1a64::new();
-        hasher.write(model.as_bytes());
-        hasher.write(b"\0");
-        hasher.write(system_prompt.as_bytes());
-        hasher.write(b"\0");
-        for d in diffs {
-            hasher.write(d.as_bytes());
-            hasher.write(b"\n");
-        }
-        hasher.write(b"\0");
-        for l in logs {
-            hasher.write(l.as_bytes());
-            hasher.write(b"\n");
-        }
-        format!("{:016x}", hasher.finish())
-    }
-
     /// Read a cached entry by key. Returns `None` if the entry does not exist
     /// or cannot be read.
     pub fn get(&self, key: &str) -> Option<String> {
@@ -193,21 +166,6 @@ mod tests {
     }
 
     #[test]
-    fn build_key_is_stable_and_sensitive() {
-        let diffs = vec!["diff --git a/x b/x".to_string(), "+hello".to_string()];
-        let logs = vec!["initial commit".to_string()];
-        let k1 = Cache::build_key("gpt-5", "sys", &diffs, &logs);
-        let k2 = Cache::build_key("gpt-5", "sys", &diffs, &logs);
-        assert_eq!(k1, k2);
-
-        let k3 = Cache::build_key("gpt-5", "sys", &diffs, &["other".to_string()]);
-        assert_ne!(k1, k3);
-
-        let k4 = Cache::build_key("gpt-4", "sys", &diffs, &logs);
-        assert_ne!(k1, k4);
-    }
-
-    #[test]
     fn get_returns_none_for_missing_entry() {
         let tmp =
             std::env::temp_dir().join(format!("aigitcommit-cache-test-{}", std::process::id()));
@@ -231,8 +189,8 @@ mod tests {
     }
 
     #[test]
-    fn build_key_format_is_16_hex_chars() {
-        let k = Cache::build_key("m", "s", &[], &[]);
+    fn request_key_format_is_16_hex_chars() {
+        let k = Cache::build_request_key("https://example.com/v1", "request");
         assert_eq!(k.len(), 16);
         assert!(k.chars().all(|c| c.is_ascii_hexdigit()));
     }
