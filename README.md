@@ -355,6 +355,18 @@ The tool will:
 2. Generate a Conventional Commit message using AI
 3. Display the result in table format (default)
 
+### AI Agent Skill
+
+AI agents can use the bundled [AIGitCommit skill](./.github/skills/aigitcommit/SKILL.md)
+for noninteractive CLI invocation, configuration checks, the JSON output contract,
+and a review-before-commit workflow.
+
+The skill lives at `.github/skills/aigitcommit/SKILL.md` for agents that discover
+workspace skills there. To use it in another repository or agent, copy the
+`aigitcommit` skill directory into a skills location supported by that agent
+(for example, `.agents/skills/` or `.claude/skills/`). The skill is self-contained;
+the `aigitcommit` executable and API environment configuration are still required.
+
 ### Command-Line Options
 
 **Output Formats:**
